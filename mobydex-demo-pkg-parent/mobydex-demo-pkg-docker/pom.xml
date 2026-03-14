@@ -10,7 +10,7 @@
 		<artifactId>mobydex-demo-pkg-parent</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
-	<packaging>pom</packaging>
+	<packaging>jar</packaging>
 
 	<properties>
 		<mainClass>org.aksw.mobydex.demo.MainAppVaadinMobydexDemo</mainClass>
