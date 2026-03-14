@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+        <artifactId>mobydex-demo-pkg-docker</artifactId>
+        <parent>
+                <groupId>org.aksw.mobydex</groupId>
+                <artifactId>mobydex-demo-pkg-parent</artifactId>
+                <version>0.0.1-SNAPSHOT</version>
+        </parent>
+        <packaging>pom</packaging>
+	
+	<properties>
+		<mainClass>org.aksw.mobydex.demo.MainAppVaadinMobydexDemo</mainClass>
+
+                <docker.tag.prefix></docker.tag.prefix>
+                <docker.tag>${docker.tag.prefix}${project.version}</docker.tag>
+	</properties>
+
+        <profiles>
+                <profile>
+                        <id>amd64</id>
+                        <activation>
+                                <activeByDefault>true</activeByDefault>
+                        </activation>
+                        <properties>
+                                <dockerJavaBaseImage>eclipse-temurin:21-jre</dockerJavaBaseImage>
+                                <archSuffix></archSuffix>
+                        </properties>
+                </profile>
+                <profile>
+                        <id>arm64</id>
+                        <properties>
+                                <dockerJavaBaseImage>arm64v8/openjdk:21-slim</dockerJavaBaseImage>
+                                <archSuffix>-arm64</archSuffix>
+                        </properties>
+                </profile>
+        </profiles>
+
+	<build>
+		<plugins>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-deploy-plugin</artifactId>
+				<configuration>
+					<skip>true</skip>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.sonatype.plugins</groupId>
+				<artifactId>nexus-staging-maven-plugin</artifactId>
+				<configuration>
+					<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>com.google.cloud.tools</groupId>
+				<artifactId>jib-maven-plugin</artifactId>
+				<configuration>
+					<to>
+						<image>docker.io/aksw/mobydex${archSuffix}:${docker.tag}</image>
+						<tags>
+						</tags>
+					</to>
+					<from>
+						<image>${dockerJavaBaseImage}</image>
+					</from>
+					<container>
+					<jvmFlags>
+					      <jvmFlag>-Ddebug=true</jvmFlag>
+                                              <jvmFlag>-Dvaadin.launch-browser=false</jvmFlag>
+					</jvmFlags>
+					<ports><port>8000</port></ports>
+						<mainClass>${mainClass}</mainClass>
+						<!-- <entrypoint>java,-cp,@/app/jib-classpath-file,-Dloader.main=org.aksw.facete3.app.vaadin.MainAppFacete3Vaadin,org.springframework.boot.loader.PropertiesLauncher</entrypoint> -->
+						<creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+					</container>
+					<containerizingMode>packaged</containerizingMode>
+					<!-- <format>OCI</format> -->
+				</configuration>
+			</plugin>
+
+		</plugins>
+	</build>
+
+
+	<dependencies>
+		<dependency>
+			<groupId>org.aksw.mobydex</groupId>
+			<artifactId>mobydex-demo-app</artifactId>
+		</dependency>
+	</dependencies>
+</project>
+

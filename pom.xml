@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>org.aksw.mobydex</groupId>
+	<artifactId>mobydex-demo-parent</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<packaging>pom</packaging>
+	<!-- <name>Jena SPARQL API - Vaadin - Parent</name> -->
+	<!-- <parent> <groupId>org.aksw.jena-sparql-api</groupId>
+	<artifactId>jena-sparql-api-parent</artifactId> 
+		<version>4.2.0-1-SNAPSHOT</version> </parent> -->
+	<properties>
+		<!--		<vaadin.version>24.4.6</vaadin.version>-->
+		<vaadin.version>25.0.6</vaadin.version>
+		<spring-boot.version>4.1.0-M2</spring-boot.version>
+		<!--		<spring-boot.version>3.3.1</spring-boot.version>-->
+
+		<vaadin-jena.version>6.1.0-1-SNAPSHOT</vaadin-jena.version>
+
+		<!-- vaadin 23 still uses javax instead of jakarta -->
+		<!--
+		<vaadin.version>23.5.2</vaadin.version>
+		<spring-boot.version>3.3.1</spring-boot.version>
+		-->
+
+		<!--
+		<vaadin.version>14.10.10</vaadin.version>
+		<spring-boot.version>2.7.18</spring-boot.version>
+		-->
+
+
+		<!--		<spring-boot.version>3.2.0</spring-boot.version>-->
+		<!--		<spring.version>6.1.1</spring.version>-->
+		<jakarta.xml.version>4.0.0</jakarta.xml.version>
+
+		<jackson.version>2.16.0</jackson.version>
+		<jenax.version>6.1.0-1-SNAPSHOT</jenax.version>
+		<aksw-commons.version>0.9.11-SNAPSHOT</aksw-commons.version>
+		<!-- <facete3.version>1.2.0-SNAPSHOT</facete3.version> -->
+		<slf4j.version>2.0.17</slf4j.version>
+		<log4j.version>2.25.3</log4j.version>
+
+		<nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
+		<jib-maven-plugin.version>3.4.4</jib-maven-plugin.version>
+		<maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
+
+		<maven.compiler.release>21</maven.compiler.release>
+		<file.encoding>UTF-8</file.encoding>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<gpg.keyname>AKSW</gpg.keyname>
+	</properties>
+	<modules>
+		<module>mobydex-demo-app</module>
+		<module>mobydex-demo-pkg-parent</module>
+	</modules>
+	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<version>3.11.0</version>
+					<configuration>
+						<!-- <source>${maven.compiler.source}</source>
+						<target>${maven.compiler.target}</target> -->
+						<release>${maven.compiler.release}</release>
+						<encoding>${project.build.sourceEncoding}</encoding>
+					</configuration>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-shade-plugin</artifactId>
+					<version>2.4.3</version>
+					<executions>
+						<!-- Run shade goal on package phase -->
+						<execution>
+							<phase>package</phase>
+							<goals>
+								<goal>shade</goal>
+							</goals>
+							<configuration>
+								<!-- TODO Shading is currently needed for the
+								debian packages, which 
+									is slow and causes huge deployments -->
+								<!-- The deb packaging should be modified to
+								work similar to the 
+									dockerfile maven plugin: -->
+								<!-- Use the resource plugin to copy deps to a
+								lib folder and adjust 
+									the bash scripts -->
+								<shadedArtifactAttached>true</shadedArtifactAttached>
+								<shadedClassifierName>jar-with-dependencies</shadedClassifierName>
+								<filters>
+									<filter>
+										<artifact>*:*</artifact>
+										<excludes>
+											<exclude>META-INF/*.SF</exclude>
+											<exclude>META-INF/*.DSA</exclude>
+											<exclude>META-INF/*.RSA</exclude>
+										</excludes>
+									</filter>
+								</filters>
+								<transformers>
+									<transformer
+										implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+									<!-- add Main-Class to manifest file -->
+									<!-- <transformer
+									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"> -->
+									<!--
+									<mainClass>com.mkyong.core.utils.App</mainClass> -->
+									<!-- </transformer> -->
+								</transformers>
+							</configuration>
+						</execution>
+					</executions>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>com.vaadin</groupId>
+				<artifactId>vaadin-bom</artifactId>
+				<version>${vaadin.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-dependencies</artifactId>
+				<version>${spring-boot.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<dependency>
+				<groupId>org.aksw.scaseco.vaadin</groupId>
+				<artifactId>vaadin-jena-bom</artifactId>
+				<version>${vaadin-jena.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<!--			<dependency>-->
+			<!--				<groupId>org.aksw.jenax</groupId>-->
+			<!--				<artifactId>jenax-bom</artifactId>-->
+			<!--				<version>${jenax.version}</version>-->
+			<!--				<type>pom</type>-->
+			<!--				<scope>import</scope>-->
+			<!--			</dependency>-->
+
+			<!--			<dependency>-->
+			<!--				<groupId>org.aksw.commons</groupId>-->
+			<!--				<artifactId>aksw-commons-bom</artifactId>-->
+			<!--				<version>${aksw-commons.version}</version>-->
+			<!--				<type>pom</type>-->
+			<!--				<scope>import</scope>-->
+			<!--			</dependency>-->
+
+			<dependency>
+				<groupId>org.slf4j</groupId>
+				<artifactId>slf4j-bom</artifactId>
+				<version>${slf4j.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<dependency>
+				<groupId>org.apache.logging.log4j</groupId>
+				<artifactId>log4j-bom</artifactId>
+				<version>${log4j.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<dependency>
+				<groupId>org.aksw.mobydex</groupId>
+				<artifactId>mobydex-demo-app</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.junit.jupiter</groupId>
+				<artifactId>junit-jupiter</artifactId>
+				<version>6.0.3</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+	<distributionManagement>
+		<repository>
+			<id>ossrh</id>
+			<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+		</repository>
+		<snapshotRepository>
+			<id>maven.aksw.snapshots</id>
+			<name>AKSW Snapshot Repository</name>
+			<url>https://maven.aksw.org/archiva/repository/snapshots</url>
+		</snapshotRepository>
+	</distributionManagement>
+	<repositories>
+		<!-- The order of definitions matters. Explicitly defining central here 
+			to make sure it has the highest priority. -->
+		<!-- Main Maven repository -->
+		<repository>
+			<id>central</id>
+			<url>https://repo.maven.apache.org/maven2</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+		<!-- Repository used by many Vaadin add-ons -->
+		<repository>
+			<id>Vaadin Directory</id>
+			<url>https://maven.vaadin.com/vaadin-addons</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>maven.aksw.snapshots</id>
+			<name>AKSW Snapshot Repository</name>
+			<url>https://maven.aksw.org/archiva/repository/snapshots</url>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
+	<pluginRepositories>
+		<!-- Main Maven repository -->
+		<pluginRepository>
+			<id>central</id>
+			<url>https://repo.maven.apache.org/maven2</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</pluginRepository>
+	</pluginRepositories>
+</project>

@@ -1,0 +1,27 @@
+server:
+  port: 8000
+
+# Ensure application is run in Vaadin 14/npm mode
+vaadin:
+  compatibility-mode: false
+  devmode:
+    usage-statistics:
+      enabled: false
+  life-reload:
+    enabled: true
+    # quiet-time: 1500
+
+logging:
+  level:
+    org.atmosphere: warn
+
+spring:
+  main:
+    banner-mode: off
+  devtools:
+    restart:
+      poll-interval: 2s
+      quiet-period: 1s
+  cloud:
+    refresh:
+      enabled: true

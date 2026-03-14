@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<artifactId>mobydex-demo-app</artifactId>
+	<packaging>jar</packaging>
+
+	<properties>
+		<drivers.dir>${project.basedir}/drivers</drivers.dir>
+		<drivers.downloader.phase>pre-integration-test</drivers.downloader.phase>
+	</properties>
+
+	<parent>
+		<groupId>org.aksw.mobydex</groupId>
+		<artifactId>mobydex-demo-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+	</parent>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.aksw.scaseco.vaadin</groupId>
+				<artifactId>vaadin-jena-bom</artifactId>
+				<version>6.1.0-1-SNAPSHOT</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vaadin</groupId>
+			<artifactId>vaadin-core</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.vaadin</groupId>
+			<artifactId>vaadin-spring-boot-starter</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>com.vaadin</groupId>
+					<artifactId>vaadin-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>ch.qos.logback</groupId>
+					<artifactId>logback-classic</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>com.vaadin</groupId>
+			<artifactId>vaadin-dev</artifactId>
+			<optional>true</optional>
+		</dependency>
+
+		<dependency>
+		    <groupId>org.springframework.boot</groupId>
+		    <artifactId>spring-boot-devtools</artifactId>
+		    <scope>runtime</scope>     <!-- or developmentOnly in Gradle -->
+		    <optional>true</optional>  <!-- common in starters -->
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-logging</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>software.xdev</groupId>
+			<artifactId>vaadin-chartjs-wrapper</artifactId>
+			<version>2.0.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>software.xdev</groupId>
+			<artifactId>chartjs-java-model</artifactId>
+			<version>3.0.1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.aksw.scaseco.vaadin</groupId>
+			<artifactId>vaadin-jena-leafletflow</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.aksw.scaseco.vaadin</groupId>
+			<artifactId>vaadin-jena-core</artifactId>
+		</dependency>
+		
+		<!--
+		<dependency>
+			<groupId>org.aksw.jenax</groupId>
+			<artifactId>jenax-arq-plugins-bundle</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.jena</groupId>
+			<artifactId>jena-arq</artifactId>
+		</dependency>
+		-->
+
+		<dependency>
+			<groupId>org.aksw.jenax</groupId>
+			<artifactId>jenax-arq-relations</artifactId>
+		</dependency>
+
+		<!--		<dependency>-->
+		<!--			<groupId>org.aksw.scaseco.vaadin</groupId>-->
+		<!--			<artifactId>vaadin-jena-rdf-term-editor</artifactId>-->
+		<!--		</dependency>-->
+
+		<!--		<dependency>-->
+		<!--			<groupId>org.aksw.scaseco.vaadin</groupId>-->
+		<!--			<artifactId>vaadin-jena-shacl-editor</artifactId>-->
+		<!--		</dependency>-->
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+
+
+		<!-- <dependency> -->
+		<!-- <groupId>org.slf4j</groupId> -->
+		<!-- <artifactId>slf4j-log4j12</artifactId> -->
+		<!-- </dependency> -->
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j2-impl</artifactId>
+		</dependency>
+
+
+		<!-- <dependency> <groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-devtools</artifactId> 
+			<version>${spring-boot.version}</version> <optional>true</optional>
+		<scope>runtime</scope> 
+			</dependency> -->
+
+
+		<!--		<dependency>-->
+		<!--			<groupId>org.aksw.jenax</groupId>-->
+		<!--			<artifactId>jenax-arq-relations</artifactId>-->
+		<!--		</dependency>-->
+
+		<!--		<dependency>-->
+		<!--			<groupId>org.aksw.jenax</groupId>-->
+		<!--			<artifactId>jenax-arq-rx</artifactId>-->
+		<!--		</dependency>-->
+
+
+		<!-- Unit Testing -->
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- <dependency> <groupId>org.aksw.jena-sparql-api</groupId>
+		<artifactId>jena-sparql-api-resources-test-config</artifactId> 
+			<scope>test</scope> </dependency> -->
+
+	</dependencies>
+
+	<build>
+		<defaultGoal>spring-boot:run</defaultGoal>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<version>${spring-boot.version}</version>
+				<!-- Clean build and startup time for Vaadin apps sometimes may
+				exceed 
+					the default Spring Boot's 30sec timeout. -->
+				<configuration>
+					<wait>500</wait>
+					<maxAttempts>240</maxAttempts>
+					<fork>true</fork>
+				</configuration>
+			</plugin>
+
+			<!-- Take care of synchronizing java dependencies and imports in
+			package.json 
+				and main.js files. It also creates webpack.config.js if not exists yet. -->
+			<plugin>
+				<groupId>com.vaadin</groupId>
+				<artifactId>vaadin-maven-plugin</artifactId>
+				<version>${vaadin.version}</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>prepare-frontend</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+	<profiles>
+		<profile>
+			<!-- Production mode is activated using -Pproduction -->
+			<id>production</id>
+			<properties>
+				<vaadin.productionMode>true</vaadin.productionMode>
+				<packaging.type>war</packaging.type>
+			</properties>
+
+			<dependencies>
+				<dependency>
+					<groupId>com.vaadin</groupId>
+					<artifactId>flow-server-production-mode</artifactId>
+				</dependency>
+			</dependencies>
+
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.springframework.boot</groupId>
+						<artifactId>spring-boot-maven-plugin</artifactId>
+						<configuration>
+							<jvmArguments>-Dvaadin.productionMode</jvmArguments>
+						</configuration>
+					</plugin>
+					<plugin>
+						<groupId>com.vaadin</groupId>
+						<artifactId>vaadin-maven-plugin</artifactId>
+						<version>${vaadin.version}</version>
+						<executions>
+							<execution>
+								<goals>
+									<goal>build-frontend</goal>
+								</goals>
+								<phase>compile</phase>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-war-plugin</artifactId>
+						<version>3.2.3</version>
+						<configuration>
+							<failOnMissingWebXml>false</failOnMissingWebXml>
+						</configuration>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.tomcat.maven</groupId>
+						<artifactId>tomcat7-maven-plugin</artifactId>
+						<version>2.2</version>
+						<configuration>
+							<server>TomcatServer</server>
+							<path>/facete3</path>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<profile>
+			<id>integration-tests</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.springframework.boot</groupId>
+						<artifactId>spring-boot-maven-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>start-spring-boot</id>
+								<phase>pre-integration-test</phase>
+								<goals>
+									<goal>start</goal>
+								</goals>
+							</execution>
+							<execution>
+								<id>stop-spring-boot</id>
+								<phase>post-integration-test</phase>
+								<goals>
+									<goal>stop</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+
+					<!-- Runs the integration tests (*IT) after the server is
+					started -->
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<executions>
+							<execution>
+								<goals>
+									<goal>integration-test</goal>
+									<goal>verify</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<trimStackTrace>false</trimStackTrace>
+							<enableAssertions>true</enableAssertions>
+							<systemPropertyVariables>
+								<!-- Pass location of downloaded webdrivers to
+								the tests -->
+								<webdriver.chrome.driver>
+									${webdriver.chrome.driver}</webdriver.chrome.driver>
+							</systemPropertyVariables>
+						</configuration>
+					</plugin>
+
+					<plugin>
+						<groupId>com.lazerycode.selenium</groupId>
+						<artifactId>driver-binary-downloader-maven-plugin</artifactId>
+						<version>1.0.17</version>
+						<configuration>
+							<onlyGetDriversForHostOperatingSystem>true
+							</onlyGetDriversForHostOperatingSystem>
+							<rootStandaloneServerDirectory>
+								${project.basedir}/drivers/driver
+							</rootStandaloneServerDirectory>
+							<downloadedZipFileDirectory>
+								${project.basedir}/drivers/driver_zips
+							</downloadedZipFileDirectory>
+							<customRepositoryMap>
+								${project.basedir}/drivers.xml
+							</customRepositoryMap>
+						</configuration>
+						<executions>
+							<execution>
+								<!-- use phase "none" to skip download step -->
+								<phase>${drivers.downloader.phase}</phase>
+								<goals>
+									<goal>selenium</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+	</profiles>
+
+
+</project>
+
