@@ -26,6 +26,7 @@ import org.apache.jena.sparql.exec.QueryExec;
 import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 import org.apache.jena.sparql.graph.GraphReadOnly;
 
+/** Caching wrapper (in-memory + disk). */
 public class MobyDexRdfApi
 {
     private Cache<List<String>, Object> cache;

@@ -49,7 +49,8 @@ public class MobyDexRdfApiRaw {
 
               # BIND(geof:buffer(?linestring, 1, uom:metre) AS ?polygon)
               BIND(STR(?cellId) AS ?polygonTooltip)
-            } LIMIT 10000
+            }
+            # LIMIT 10000
         """
             .replace("$PROJECT_ID", Long.toString(projectId))
         ;
