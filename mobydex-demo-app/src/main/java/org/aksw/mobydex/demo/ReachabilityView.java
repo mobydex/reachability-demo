@@ -22,6 +22,8 @@ import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
+import com.vaadin.flow.component.radiobutton.RadioGroupVariant;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout.Orientation;
@@ -85,12 +87,34 @@ public class ReachabilityView extends VerticalLayout {
 
     private String ID;
 
-    private Map<String, LPath<?>> cellIdToLayer = new ConcurrentHashMap<>();
+    protected CellSelectionMode cellSelectionMode = CellSelectionMode.FOCUS;
+
+    public enum CellSelectionMode {
+        FOCUS("Focus"), // Focus on the selected cell, making it the origin of reachability computations.
+        INFO("Info");  // Selecting a cell shows detailed info about the cell. It does not change the reachability origin.
+
+        private String label;
+
+        private CellSelectionMode(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+
+        @Override
+        public String toString() {
+            return getLabel();
+        }
+    }
 
     // --- Formatting ---
     protected static final DecimalFormat decimalFormat = new DecimalFormat("#0.##"); // , symbols);
 
-    // --- User Settings ---
+    // --- State / User Settings ---
+
+    private Map<String, LPath<?>> cellIdToLayer = new ConcurrentHashMap<>();
 
     private String selectedCell = null;
     private long durationThreshold;
@@ -178,6 +202,19 @@ public class ReachabilityView extends VerticalLayout {
         controlBar.add(durationCapSelect);
 
         add(controlBar);
+
+
+        RadioButtonGroup<CellSelectionMode> radioGroup = new RadioButtonGroup<>();
+        radioGroup.addThemeVariants(RadioGroupVariant.AURA_HORIZONTAL);
+        radioGroup.setLabel("Cell Selection Mode");
+        radioGroup.setItems(CellSelectionMode.FOCUS, CellSelectionMode.INFO);
+        radioGroup.setValue(cellSelectionMode);
+        // radioGroup.setItemLabelGenerator(item -> StringUtils.toUpperCamelCase(item.toString()));
+        radioGroup.addValueChangeListener(ev -> {
+            cellSelectionMode = ev.getValue();
+        });
+        // radioGroup.setReadOnly(true);
+        add(radioGroup);
 
         SplitLayout mapAndChartSplit = new SplitLayout(Orientation.VERTICAL);
         add(mapAndChartSplit);
