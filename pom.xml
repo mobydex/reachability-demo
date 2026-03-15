@@ -154,13 +154,13 @@
 			<!--				<scope>import</scope>-->
 			<!--			</dependency>-->
 
-			<!--			<dependency>-->
-			<!--				<groupId>org.aksw.commons</groupId>-->
-			<!--				<artifactId>aksw-commons-bom</artifactId>-->
-			<!--				<version>${aksw-commons.version}</version>-->
-			<!--				<type>pom</type>-->
-			<!--				<scope>import</scope>-->
-			<!--			</dependency>-->
+			<dependency>
+				<groupId>org.aksw.commons</groupId>
+				<artifactId>aksw-commons-bom</artifactId>
+				<version>${aksw-commons.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
 
 			<dependency>
 				<groupId>org.slf4j</groupId>

@@ -18,18 +18,6 @@
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
 
-	<dependencyManagement>
-		<dependencies>
-			<dependency>
-				<groupId>org.aksw.scaseco.vaadin</groupId>
-				<artifactId>vaadin-jena-bom</artifactId>
-				<version>6.1.0-1-SNAPSHOT</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
-
 	<dependencies>
 		<dependency>
 			<groupId>com.vaadin</groupId>
@@ -118,6 +106,11 @@
 			<artifactId>jena-arq</artifactId>
 		</dependency>
 		-->
+
+		<dependency>
+			<groupId>org.aksw.commons</groupId>
+			<artifactId>aksw-commons-index</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.aksw.jenax</groupId>

@@ -1,9 +1,13 @@
 package org.aksw.mobydex.demo;
 
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,12 +21,20 @@ import com.vaadin.flow.component.splitlayout.SplitLayout.Orientation;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import org.aksw.commons.index.StorageComposers;
+import org.aksw.jenax.arq.util.binding.BindingUtils;
+import org.aksw.jenax.arq.util.tuple.adapter.TupleBridgeBinding;
+import org.aksw.jenax.sparql.fragment.api.Fragment;
+import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
 import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.algebra.Table;
+import org.apache.jena.sparql.engine.binding.Binding;
 import org.apache.jena.sparql.exec.QueryExec;
 import org.locationtech.jts.geom.Geometry;
 
@@ -62,7 +74,40 @@ public class ReachabilityView
 
     private String ID;
 
-    private Map<String, LLayer<?>> idToLayer = new ConcurrentHashMap<>();
+    private Map<String, LPath<?>> cellIdToLayer = new ConcurrentHashMap<>();
+
+    // --- User Settings ---
+
+    private String selectedCell = null;
+    private long durationThreshold;
+
+    public static class CellStyles {
+        public static LPolylineOptions grey() { return grey(new LPolylineOptions()); }
+        public static LPolylineOptions blue() { return blue(new LPolylineOptions()); }
+
+        public static LPolylineOptions green() { return blue(new LPolylineOptions()); }
+        public static LPolylineOptions red() { return blue(new LPolylineOptions()); }
+
+        public static LPolylineOptions grey(LPolylineOptions options) {
+            return options.withColor("grey").withFillColor("lightgrey").withFillOpacity(0.5);
+        }
+
+        public static LPolylineOptions blue(LPolylineOptions options) {
+            return options.withColor("blue").withFillColor("lightblue").withFillOpacity(0.5);
+        }
+
+        public static LPolylineOptions green(LPolylineOptions options) {
+            return options.withColor("green").withFillColor("lightgreen").withFillOpacity(0.5);
+        }
+
+        public static LPolylineOptions red(LPolylineOptions options) {
+            return options.withColor("red").withFillColor("lightred").withFillOpacity(0.5);
+        }
+
+        public static LPolylineOptions selected(LPolylineOptions options) {
+            return options.withStroke(true).withColor("orange").withOpacity(0.5);
+        }
+    }
 
     public ReachabilityView() {
         setSizeFull();
@@ -81,6 +126,7 @@ public class ReachabilityView
         });
         controlBar.add(loadGridBtn);
 
+
         Select<Long> durationCapSelect = new Select<>();
         durationCapSelect.setLabel("Duration Cap");
         List<Long> values = new ArrayList<>();
@@ -89,11 +135,17 @@ public class ReachabilityView
             values.add(v);
         }
 
+        durationThreshold = values.get(2);
+
         //DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.US);
         DecimalFormat decimalFormat = new DecimalFormat("#0.##"); //, symbols);
         durationCapSelect.setItems(values);
         durationCapSelect.setTextRenderer(durationSeconds -> decimalFormat.format(durationSeconds / 60.0) + "m");
-        durationCapSelect.setValue(values.get(2));
+        durationCapSelect.setValue(durationThreshold);
+        durationCapSelect.addValueChangeListener(ev -> {
+            durationThreshold = ev.getValue();
+            refreshStats();
+        });
         controlBar.add(durationCapSelect);
 
         add(controlBar);
@@ -140,6 +192,84 @@ public class ReachabilityView
           .toJson());
     }
 
+
+    // Reset the style of all cells
+    public void clearCells() {
+        Map<Node, List<Binding>> cellToBinding = computeHistogram(selectedCell);
+
+        for (var e : cellIdToLayer.entrySet()) {
+            String cellId = e.getKey();
+            LPath<?> cellPath = e.getValue();
+
+            LPolylineOptions style = new LPolylineOptions();
+            CellStyles.grey(style); // default color
+
+            Node cellNode = NodeFactory.createURI(cellId);
+            List<Binding> bindings = cellToBinding.get(cellNode);
+            if (bindings != null) {
+                for (Binding b : bindings) {
+                    Long duration = BindingUtils.tryGetNumber(b, "duration").map(Number::longValue).orElse(null);
+                    if (duration != null) {
+                        if (duration < durationThreshold) {
+                            CellStyles.green(style);
+                        } else {
+                            CellStyles.red(style);
+                        }
+                    }
+                }
+            }
+            if (Objects.equals(cellId, selectedCell)) {
+                CellStyles.selected(style);
+            }
+            cellPath.setStyle(style);
+        }
+    }
+
+    public Map<Node, List<Binding>> computeHistogram(String originCellIdStr) {
+        if (selectedCell == null) {
+            return Collections.emptyMap();
+        }
+
+        // FIXME Get the ID via the project model!
+        String tmp = originCellIdStr.substring("https://mobydex.locoslab.com/controller-service/projects/2#cell".length());
+        long originCellId = Long.parseLong(tmp);
+
+        MobyDexRdfApi mobyDexApi;
+        try {
+            mobyDexApi = new MobyDexRdfApi();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        long projectId = 2;
+        long computationId = 70;
+        // long originCellId = 271;
+
+        Fragment osmPoiTable = Fragment.of(OsmRdfApi.getPoiCategories()).toFragment3();
+
+        Model projectGridModel = mobyDexApi.loadProjectGrid(projectId);
+        Resource originCell = mobyDexApi.loadComputation(projectId, computationId, originCellId);
+
+        Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+
+        Model poiTypeHistogramModel = mobyDexApi.loadPoiHistogramModel(projectId, tagsFragment);
+
+        Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
+        Table poiTypeToCells = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, durationProperty);
+
+        TupleBridgeBinding bridge = TupleBridgeBinding.ofVarNames("destCell");
+
+        var aggregator = StorageComposers.innerMap(0, HashMap::new,
+                             StorageComposers.leafList(ArrayList::new, bridge));
+        Map<Node, List<Binding>> cellToBinding = aggregator.newStore();
+        poiTypeToCells.rows().forEachRemaining(b -> aggregator.add(cellToBinding, b));
+
+        return cellToBinding;
+    }
+
+    public void refreshStats() {
+        clearCells();
+    }
+
     public void loadProjectGrid() {
         Model model = MobyDexRdfApiRaw.loadProjectGrid(2);
 
@@ -157,7 +287,7 @@ public class ReachabilityView
                 (layer, b, v) -> {
                     Node s = b.get("s");
                     String str = s.toString();
-                    idToLayer.put(str, layer);
+                    cellIdToLayer.put(str, (LPath<?>)layer);
                     layer.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked('" + str + "')");
 //                    layer.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.target.options)");
                 });
@@ -208,24 +338,24 @@ public class ReachabilityView
             );
 
         LPolylineOptions options = new LPolylineOptions();
-            options.setColor("blue");
-            options.setFillColor("lightblue");
-            options.setFillOpacity(0.5);
-            // options.set... other style props, popup, tooltip etc.
+        options.setColor("blue");
+        options.setFillColor("lightblue");
+        options.setFillOpacity(0.5);
+        // options.set... other style props, popup, tooltip etc.
 
-            LPolygon polygon = new LPolygon(reg, points, options);
+        LPolygon polygon = new LPolygon(reg, points, options);
 
-            // Optional: attach popup / tooltip directly (shows on click/hover)
-            polygon.bindPopup("This is polygon X!<br>ID: 123");
-            polygon.bindTooltip("Polygon X");
-            polygon.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.target.options)");
-            // polygon.on("click", "e => console.log(e)");
+        // Optional: attach popup / tooltip directly (shows on click/hover)
+        polygon.bindPopup("This is polygon X!<br>ID: 123");
+        polygon.bindTooltip("Polygon X");
+        polygon.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.target.options)");
+        // polygon.on("click", "e => console.log(e)");
 
-            // Add to map (or to a LayerGroup / FeatureGroup first if managing many)
-            map.addLayer(polygon);
+        // Add to map (or to a LayerGroup / FeatureGroup first if managing many)
+        map.addLayer(polygon);
 
-            // See also https://vaadin.com/docs/latest/create-ui/element-api/client-server-rpc
-            map.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.latlng)");
+        // See also https://vaadin.com/docs/latest/create-ui/element-api/client-server-rpc
+        map.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.latlng)");
         // locationSchnitzel.list
 
 
@@ -239,19 +369,26 @@ public class ReachabilityView
         return mapContainer;
     }
 
+    LLayer<?> getSelectedLayer() {
+        LLayer<?> layer = cellIdToLayer.get(selectedCell);
+        return layer;
+    }
+
     // This server side method will be called when the map is clicked
     @ClientCallable
     public void mapClicked(JsonNode input)
     {
-        LLayer<?> layer = null;
         if (input.isString()) {
-            layer = idToLayer.get(input.asString());
+            selectedCell = input.asString();
         }
+
+        LLayer<?> layer = getSelectedLayer();
 
         if (layer instanceof LPath<?> p) {
             LPolylineOptions options = new LPolylineOptions();
             options.setColor("red");
             p.setStyle(options);
+            refreshStats();
         }
 
         System.out.println("GOT CLICK: " + input);
