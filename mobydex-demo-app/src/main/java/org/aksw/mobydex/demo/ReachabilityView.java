@@ -27,12 +27,17 @@ import com.vaadin.flow.component.radiobutton.RadioGroupVariant;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout.Orientation;
+import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
 import org.aksw.commons.index.StorageComposers;
+import org.aksw.jena_sparql_api.vaadin.util.GridLike;
+import org.aksw.jena_sparql_api.vaadin.util.GridWrapperBase;
+import org.aksw.jena_sparql_api.vaadin.util.VaadinSparqlUtils;
 import org.aksw.jenax.arq.util.binding.BindingUtils;
 import org.aksw.jenax.arq.util.tuple.adapter.TupleBridgeBinding;
+import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.mobydex.demo.OsmRdfApi.ElementTransformInjectNamedElement;
@@ -42,7 +47,9 @@ import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
 import org.apache.jena.atlas.iterator.Iter;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.Query;
+import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
@@ -56,7 +63,6 @@ import org.locationtech.jts.geom.Geometry;
 import software.xdev.chartjs.model.charts.BarChart;
 import software.xdev.chartjs.model.data.BarData;
 import software.xdev.chartjs.model.dataset.BarDataset;
-import software.xdev.chartjs.model.enums.IndexAxis;
 import software.xdev.chartjs.model.options.BarOptions;
 import software.xdev.chartjs.model.options.scale.Scales;
 import software.xdev.chartjs.model.options.scale.Scales.ScaleAxis;
@@ -118,7 +124,7 @@ public class ReachabilityView extends VerticalLayout {
     }
 
     // --- Formatting ---
-    protected static final DecimalFormat decimalFormat = new DecimalFormat("#0.##"); // , symbols);
+    protected static final DecimalFormat decimalFormat = new DecimalFormat("#0.#"); // , symbols);
 
     // --- State / User Settings ---
 
@@ -132,6 +138,15 @@ public class ReachabilityView extends VerticalLayout {
     private String focusCell = null;
     private String infoCell = null;
     private long durationThreshold;
+    private Binding selectedPoiType;
+
+
+    private TabSheet tabSheet = new TabSheet();
+    private Tab reachabilityTab;
+    private Tab cellDetailsTab;
+    private Tab poisTab;
+
+    private GridSparqlBinding poiReachabilityGrid = new GridSparqlBinding();
 
     public static class CellStyles {
         public static LPolylineOptions grey() {
@@ -256,9 +271,9 @@ public class ReachabilityView extends VerticalLayout {
         mapContainer.setWidthFull();
         mapContainer.setHeight("400px");
 
-        TabSheet tabSheet = new TabSheet();
-        tabSheet.add("Reachability", reachabilityChart);
-        tabSheet.add("Cell Details", cellDetailsChart);
+        reachabilityTab = tabSheet.add("Reachability", reachabilityChart);
+        poisTab = tabSheet.add("Pois", poiReachabilityGrid);
+        cellDetailsTab = tabSheet.add("Cell Details", cellDetailsChart);
 
         // Assumes that this code is in some kind of Vaadin component or view
         mapAndChartSplit.addToSecondary(tabSheet);
@@ -273,39 +288,39 @@ public class ReachabilityView extends VerticalLayout {
 //          "{\"data\":{\"labels\":[\"A\",\"B\"],\"datasets\":[{\"data\":[1,2],\"label\":\"X\"}]},\"type\":\"bar\"}");
 
         // 1. Define Labels for the X-Axis (Time)
-        BarData data = new BarData()
-            .addLabels("0", "1", "2");
-
-        // 2. Create Success Dataset (Green)
-        BarDataset successDataset = new BarDataset()
-            .setLabel("Success")
-            .setBackgroundColor("#BAFFC9") // Soft pastel green
-            .setBorderColor("#77DD77")     // Slightly darker border for definition
-            .setBorderWidth(1)
-            .addData(10).addData(15).addData(8) // Example values for times 0, 1, 2
-            .setStack("stack1"); // Assign to a stack group
-
-        // 3. Create Failure Dataset (Red)
-        BarDataset failureDataset = new BarDataset()
-            .setLabel("Failure")
-            .setBackgroundColor("#FFB3BA") // Soft pastel red/pink
-            .setBorderColor("#FF6961")     // Slightly darker border
-            .setBorderWidth(1)
-            .addData(2).addData(5).addData(3) // Example values
-            .setStack("stack1"); // Assign to the SAME stack group
-
-        data.addDataset(successDataset);
-        data.addDataset(failureDataset);
-
-        // 4. Configure Options (Ensure scales are stacked)
-        BarOptions options = new BarOptions()
-            .setResponsive(true)
-            .setScales(new Scales()
-                .addScale(ScaleAxis.X, new LinearScaleOptions().setStacked(true))
-                .addScale(ScaleAxis.Y, new LinearScaleOptions().setStacked(true)));
-
-        // 5. Display the chart
-        reachabilityChart.showChart(new BarChart(data).setOptions(options).toJson());
+//        BarData data = new BarData()
+//            .addLabels("0", "1", "2");
+//
+//        // 2. Create Success Dataset (Green)
+//        BarDataset successDataset = new BarDataset()
+//            .setLabel("Success")
+//            .setBackgroundColor("#BAFFC9") // Soft pastel green
+//            .setBorderColor("#77DD77")     // Slightly darker border for definition
+//            .setBorderWidth(1)
+//            .addData(10).addData(15).addData(8) // Example values for times 0, 1, 2
+//            .setStack("stack1"); // Assign to a stack group
+//
+//        // 3. Create Failure Dataset (Red)
+//        BarDataset failureDataset = new BarDataset()
+//            .setLabel("Failure")
+//            .setBackgroundColor("#FFB3BA") // Soft pastel red/pink
+//            .setBorderColor("#FF6961")     // Slightly darker border
+//            .setBorderWidth(1)
+//            .addData(2).addData(5).addData(3) // Example values
+//            .setStack("stack1"); // Assign to the SAME stack group
+//
+//        data.addDataset(successDataset);
+//        data.addDataset(failureDataset);
+//
+//        // 4. Configure Options (Ensure scales are stacked)
+//        BarOptions options = new BarOptions()
+//            .setResponsive(true)
+//            .setScales(new Scales()
+//                .addScale(ScaleAxis.X, new LinearScaleOptions().setStacked(true))
+//                .addScale(ScaleAxis.Y, new LinearScaleOptions().setStacked(true)));
+//
+//        // 5. Display the chart
+//        reachabilityChart.showChart(new BarChart(data).setOptions(options).toJson());
 
         // Or utilizing chartjs-java-model
 //        chart.showChart(new BarChart(
@@ -465,6 +480,16 @@ public class ReachabilityView extends VerticalLayout {
 
     public Map<Node, List<Binding>> computePoiDurations(String originCellIdStr) {
         Table poiTypeToCells = computePoiDurationsTable(originCellIdStr);
+        Query query = Fragment.of(poiTypeToCells).projectVarNames("cp", "co", "duration").toQuery();
+
+        // Query query = QueryUtils.tableToQuery(poiTypeToCells);
+        QueryExecutionFactoryQuery qef = q -> QueryExecution.dataset(DatasetFactory.empty()).query(q).build();
+
+        GridLike<Binding> wrappedGrid = GridWrapperBase.wrap(poiReachabilityGrid);
+        VaadinSparqlUtils.setQueryForGridBinding(wrappedGrid, poiReachabilityGrid.getHeaderRow(), qef, query);
+        VaadinSparqlUtils.configureGridFilter(wrappedGrid, poiReachabilityGrid.getFilterRow(), query.getProjectVars(),
+                var -> str -> VaadinSparqlUtils.createFilterExpr(var, str).orElse(null));
+
 
         // FIXME Updating the view does not belong here
         setPoiDurationTable(poiTypeToCells);
@@ -686,6 +711,7 @@ public class ReachabilityView extends VerticalLayout {
                 focusCell = str;
                 LLayer<?> layer = getFocusLayer();
                 if (layer instanceof LPath<?> p) {
+                    tabSheet.setSelectedTab(reachabilityTab);
                     refreshStats();
                 }
                 break;
@@ -693,6 +719,7 @@ public class ReachabilityView extends VerticalLayout {
                 infoCell = str;
                 LLayer<?> layer2 = getDetailsLayer();
                 if (layer2 instanceof LPath<?> p) {
+                    tabSheet.setSelectedTab(cellDetailsTab);
                     refreshCellDetails();
                 }
                 break;

@@ -85,7 +85,7 @@ public class OsmRdfApi {
                   }
                 } LIMIT $N }
               }
-            }
+            } ORDER BY ?duration
         """
             .replace("$N", Long.toString(n))
             .replace("$ORIGIN_CELL", "<" + projectGridCell.getURI() + ">")
