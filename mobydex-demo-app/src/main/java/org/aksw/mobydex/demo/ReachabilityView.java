@@ -35,22 +35,28 @@ import org.aksw.jenax.arq.util.binding.BindingUtils;
 import org.aksw.jenax.arq.util.tuple.adapter.TupleBridgeBinding;
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
+import org.aksw.mobydex.demo.OsmRdfApi.ElementTransformInjectNamedElement;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
 import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
 import org.apache.jena.atlas.iterator.Iter;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.query.Query;
+import org.apache.jena.query.QueryFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.algebra.Table;
 import org.apache.jena.sparql.engine.binding.Binding;
 import org.apache.jena.sparql.exec.QueryExec;
+import org.apache.jena.sparql.syntax.Element;
+import org.apache.jena.sparql.syntax.syntaxtransform.QueryTransformOps;
 import org.locationtech.jts.geom.Geometry;
 
 import software.xdev.chartjs.model.charts.BarChart;
 import software.xdev.chartjs.model.data.BarData;
 import software.xdev.chartjs.model.dataset.BarDataset;
+import software.xdev.chartjs.model.enums.IndexAxis;
 import software.xdev.chartjs.model.options.BarOptions;
 import software.xdev.chartjs.model.options.scale.Scales;
 import software.xdev.chartjs.model.options.scale.Scales.ScaleAxis;
@@ -81,7 +87,9 @@ public class ReachabilityView extends VerticalLayout {
     protected JtsToLMapConverter converter;
 
     protected MapContainer mapContainer;
-    protected ChartContainer chart = new ChartContainer();
+    protected ChartContainer reachabilityChart = new ChartContainer();
+
+    protected ChartContainer cellDetailsChart = new ChartContainer();
 
     protected LLayerGroup connectionGroup;
 
@@ -114,9 +122,15 @@ public class ReachabilityView extends VerticalLayout {
 
     // --- State / User Settings ---
 
+    long projectId = 2;
+    long computationId = 70;
+
+    MobyDexRdfApi mobyDexApi;
+
     private Map<String, LPath<?>> cellIdToLayer = new ConcurrentHashMap<>();
 
-    private String selectedCell = null;
+    private String focusCell = null;
+    private String infoCell = null;
     private long durationThreshold;
 
     public static class CellStyles {
@@ -149,12 +163,16 @@ public class ReachabilityView extends VerticalLayout {
         }
 
         public static LPolylineOptions red(LPolylineOptions options) {
-            return options.withColor("red").withFillColor("lightred").withFillOpacity(0.5);
+            return options.withColor("red").withFillColor("orange").withFillOpacity(0.5);
         }
 
-        public static LPolylineOptions selected(LPolylineOptions options) {
-            return options.withStroke(true).withColor("orange").withOpacity(0.5);
+        public static LPolylineOptions purple(LPolylineOptions options) {
+            return options.withColor("purple").withOpacity(0.8).withFillColor("purple").withFillOpacity(0.8);
         }
+
+//        public static LPolylineOptions selected(LPolylineOptions options) {
+//            return options.withStroke(true).withColor("orange").withOpacity(0.5);
+//        }
     }
 
     public static String fmtDurationS2M(Long durationSeconds) {
@@ -164,6 +182,12 @@ public class ReachabilityView extends VerticalLayout {
     }
 
     public ReachabilityView() {
+        try {
+            mobyDexApi = new MobyDexRdfApi();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
         setSizeFull();
 
         ID = "my-map-view-" + System.nanoTime();
@@ -200,9 +224,7 @@ public class ReachabilityView extends VerticalLayout {
             refreshStats();
         });
         controlBar.add(durationCapSelect);
-
         add(controlBar);
-
 
         RadioButtonGroup<CellSelectionMode> radioGroup = new RadioButtonGroup<>();
         radioGroup.addThemeVariants(RadioGroupVariant.AURA_HORIZONTAL);
@@ -234,12 +256,16 @@ public class ReachabilityView extends VerticalLayout {
         mapContainer.setWidthFull();
         mapContainer.setHeight("400px");
 
+        TabSheet tabSheet = new TabSheet();
+        tabSheet.add("Reachability", reachabilityChart);
+        tabSheet.add("Cell Details", cellDetailsChart);
+
         // Assumes that this code is in some kind of Vaadin component or view
-        mapAndChartSplit.addToSecondary(chart);
+        mapAndChartSplit.addToSecondary(tabSheet);
 
         // chart.setWidth("400px");
-        chart.setWidthFull();
-        chart.setHeight("400px");
+        reachabilityChart.setWidthFull();
+        reachabilityChart.setHeight("400px");
 
         // this.add(chart);
 
@@ -279,7 +305,7 @@ public class ReachabilityView extends VerticalLayout {
                 .addScale(ScaleAxis.Y, new LinearScaleOptions().setStacked(true)));
 
         // 5. Display the chart
-        chart.showChart(new BarChart(data).setOptions(options).toJson());
+        reachabilityChart.showChart(new BarChart(data).setOptions(options).toJson());
 
         // Or utilizing chartjs-java-model
 //        chart.showChart(new BarChart(
@@ -373,12 +399,12 @@ public class ReachabilityView extends VerticalLayout {
                     .addScale(ScaleAxis.Y, new LinearScaleOptions().setStacked(true)));
 
         BarChart barChart = new BarChart(barData).setOptions(options);
-        chart.showChart(barChart.toJson());
+        reachabilityChart.showChart(barChart.toJson());
     }
 
     // Reset the style of all cells
     public void clearCells() {
-        Map<Node, List<Binding>> cellToBinding = computePoiDurations(selectedCell);
+        Map<Node, List<Binding>> cellToBinding = computePoiDurations(focusCell);
 
         for (var e : cellIdToLayer.entrySet()) {
             String cellId = e.getKey();
@@ -401,8 +427,9 @@ public class ReachabilityView extends VerticalLayout {
                     }
                 }
             }
-            if (Objects.equals(cellId, selectedCell)) {
-                CellStyles.selected(style);
+            if (Objects.equals(cellId, focusCell)) {
+                CellStyles.purple(style);
+                // CellStyles.selected(style);
             }
             cellPath.setStyle(style);
         }
@@ -418,14 +445,6 @@ public class ReachabilityView extends VerticalLayout {
                 .substring("https://mobydex.locoslab.com/controller-service/projects/2#cell".length());
         long originCellId = Long.parseLong(tmp);
 
-        MobyDexRdfApi mobyDexApi;
-        try {
-            mobyDexApi = new MobyDexRdfApi();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        long projectId = 2;
-        long computationId = 70;
         // long originCellId = 271;
 
         // Fragment osmPoiTable =
@@ -461,6 +480,101 @@ public class ReachabilityView extends VerticalLayout {
 
     public void refreshStats() {
         clearCells();
+    }
+
+    public void refreshCellDetails() {
+        if (infoCell == null) {
+            return;
+        }
+
+        Node cellNode = NodeFactory.createURI(infoCell);
+        Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+        Model poiTypeHistogramModel = mobyDexApi.loadPoiHistogramModel(projectId, tagsFragment);
+
+        Query baseQuery = QueryFactory.create("""
+            PREFIX eg: <http://www.example.org/>
+
+            SELECT ?cell ?cp ?co ?count {
+              SERVICE <elt:tags> { }
+              LATERAL {
+                OPTIONAL {
+                  ?cell
+                    eg:hasPoiHistogram ?cellTypeHist .
+                  ?cellTypeHist
+                    eg:cp ?cp ;
+                    eg:co ?co ;
+                    eg:count ?count
+                }
+                # BIND(IF(bound(?cnt), ?cnt, 0) AS ?count)
+              }
+            } ORDER BY ?co ?cp
+            """);
+        Element tagsElt = tagsFragment.rename("cp", "co").getElement();
+
+        Map<String, Element> map = new HashMap<>();
+        map.put("elt:tags", tagsElt);
+
+        Query query = QueryTransformOps.transform(baseQuery, new ElementTransformInjectNamedElement(map));
+
+        Table table = QueryExec.graph(poiTypeHistogramModel.getGraph()).query(query)
+            .substitution("cell", cellNode)
+            .table();
+
+        List<Binding> bindings = Iter.toList(table.rows());
+//        Function<Binding, Binding> projectPoiType = b -> BindingUtils.project(b, "cp", "co");
+//
+//        String COL = "count";
+//        NavigableMap<Long, List<Binding>> countToPoiTypes = bindings.stream().collect(
+//            Collectors.groupingBy(b -> BindingUtils.tryGetNumber(b, COL).map(Number::longValue).orElse(0l),
+//                () -> new TreeMap<>(Comparator.reverseOrder()),
+//                Collectors.mapping(projectPoiType, Collectors.toList())));
+
+
+        // TODO: Color pois based on relation to the focus cell:
+        // 4 categories: poi within best reachable cell, poi within duration limit, poi outside of duration limit, poi not present.
+//        BarDataset successDataset = new BarDataset()
+//            .setLabel("Success")
+//            .setBackgroundColor("#BAFFC9") // Soft pastel green
+//            .setBorderColor("#77DD77")     // Slightly darker border for definition
+//            .setBorderWidth(1)
+//            .setStack("stack1"); // Assign to a stack group
+
+        // 3. Create Failure Dataset (Red)
+        BarDataset dataset = new BarDataset()
+            .setLabel("Failure")
+            // .setBackgroundColor("#FFB3BA") // Soft pastel red/pink
+            // .setBorderColor("#FF6961")     // Slightly darker border
+            .setBorderWidth(1);
+            //.setStack("stack1"); // Assign to the SAME stack group
+
+        // BarDataset barDataset = new BarDataset();
+        // successDataset.setLabel("In-Reach POI Type Coverage by Travel Time");
+        dataset.setLabel("Out-of-Reach POI Type Coverage by Travel Time");
+        Set<Binding> successPoiTypes = new HashSet<>();
+
+        BarData barData = new BarData();
+        for (var b : bindings) {
+//            String poiTypeLabel = ("" + b.get("cp")).replace("https://www.openstreetmap.org/wiki/Key:", "")
+//                    + " " + b.get("co");
+            Node node = b.get("co");
+            String poiTypeLabel = node.isLiteral() ? node.getLiteralLexicalForm() : "" + node;
+            barData.addLabel(poiTypeLabel);
+
+            Number count = BindingUtils.getNumberNullable(b, "count");
+            dataset.addData(count);
+        }
+
+        // barData.addDataset(barDataset);
+        barData.addDataset(dataset);
+
+        BarOptions options = new BarOptions()
+            .setResponsive(true);
+            // .setScales(new Scales()
+                // .addScale(ScaleAxis.X, new LinearScaleOptions().setStacked(true))
+               // .addScale(ScaleAxis.Y, new LinearScaleOptions().setStacked(true)));
+
+        BarChart barChart = new BarChart(barData).setOptions(options);
+        cellDetailsChart.showChart(barChart.toJson());
     }
 
     public void loadProjectGrid() {
@@ -552,8 +666,13 @@ public class ReachabilityView extends VerticalLayout {
         return mapContainer;
     }
 
-    LLayer<?> getSelectedLayer() {
-        LLayer<?> layer = cellIdToLayer.get(selectedCell);
+    LLayer<?> getFocusLayer() {
+        LLayer<?> layer = cellIdToLayer.get(focusCell);
+        return layer;
+    }
+
+    LLayer<?> getDetailsLayer() {
+        LLayer<?> layer = cellIdToLayer.get(infoCell);
         return layer;
     }
 
@@ -561,17 +680,33 @@ public class ReachabilityView extends VerticalLayout {
     @ClientCallable
     public void mapClicked(JsonNode input) {
         if (input.isString()) {
-            selectedCell = input.asString();
+            String str = input.asString();
+            switch (cellSelectionMode) {
+            case FOCUS:
+                focusCell = str;
+                LLayer<?> layer = getFocusLayer();
+                if (layer instanceof LPath<?> p) {
+                    refreshStats();
+                }
+                break;
+            case INFO:
+                infoCell = str;
+                LLayer<?> layer2 = getDetailsLayer();
+                if (layer2 instanceof LPath<?> p) {
+                    refreshCellDetails();
+                }
+                break;
+            default:
+                throw new RuntimeException("Unsupported select mode: " + cellSelectionMode);
+            }
         }
-
-        LLayer<?> layer = getSelectedLayer();
-
-        if (layer instanceof LPath<?> p) {
-            LPolylineOptions options = new LPolylineOptions();
-            options.setColor("red");
-            p.setStyle(options);
-            refreshStats();
-        }
+//        LLayer<?> layer = getSelectedLayer();
+//        if (str != null && layer instanceof LPath<?> p) {
+//            LPolylineOptions options = new LPolylineOptions();
+//            options.setColor("red");
+//            p.setStyle(options);
+//            refreshStats();
+//        }
 
         System.out.println("GOT CLICK: " + input);
         if (!(input instanceof final ObjectNode obj)) {
