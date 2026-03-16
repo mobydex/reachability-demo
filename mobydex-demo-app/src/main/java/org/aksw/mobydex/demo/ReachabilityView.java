@@ -54,8 +54,10 @@ import org.apache.jena.query.QueryFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.algebra.Table;
+import org.apache.jena.sparql.algebra.TableFactory;
 import org.apache.jena.sparql.engine.binding.Binding;
 import org.apache.jena.sparql.exec.QueryExec;
+import org.apache.jena.sparql.exec.http.QueryExecHTTP;
 import org.apache.jena.sparql.syntax.Element;
 import org.apache.jena.sparql.syntax.syntaxtransform.QueryTransformOps;
 import org.locationtech.jts.geom.Geometry;
@@ -97,7 +99,8 @@ public class ReachabilityView extends VerticalLayout {
 
     protected ChartContainer cellDetailsChart = new ChartContainer();
 
-    protected LLayerGroup connectionGroup;
+    protected LLayerGroup gridLayerGroup;
+    private LLayerGroup markerLayerGroup;
 
     private String ID;
 
@@ -265,8 +268,12 @@ public class ReachabilityView extends VerticalLayout {
         mapAndChartSplit.addToPrimary(mapContainer);
         converter = new JtsToLMapConverter(reg);
 
-        connectionGroup = new LLayerGroup(reg);
-        mapContainer.getlMap().addLayer(connectionGroup);
+        markerLayerGroup = new LLayerGroup(reg);
+        mapContainer.getlMap().addLayer(markerLayerGroup);
+
+        gridLayerGroup = new LLayerGroup(reg);
+        mapContainer.getlMap().addLayer(gridLayerGroup);
+
         // mapContainer.setWidth("400px");
         mapContainer.setWidthFull();
         mapContainer.setHeight("400px");
@@ -280,53 +287,52 @@ public class ReachabilityView extends VerticalLayout {
 
         // chart.setWidth("400px");
         reachabilityChart.setWidthFull();
-        reachabilityChart.setHeight("400px");
+        reachabilityChart.setMaxHeight("300px");
 
-        // this.add(chart);
 
-//        chart.showChart(
-//          "{\"data\":{\"labels\":[\"A\",\"B\"],\"datasets\":[{\"data\":[1,2],\"label\":\"X\"}]},\"type\":\"bar\"}");
+        poiReachabilityGrid.addSelectionListener(ev -> {
+            Binding b = ev.getFirstSelectedItem().orElse(null);
+            markerLayerGroup.clearLayers();
 
-        // 1. Define Labels for the X-Axis (Time)
-//        BarData data = new BarData()
-//            .addLabels("0", "1", "2");
-//
-//        // 2. Create Success Dataset (Green)
-//        BarDataset successDataset = new BarDataset()
-//            .setLabel("Success")
-//            .setBackgroundColor("#BAFFC9") // Soft pastel green
-//            .setBorderColor("#77DD77")     // Slightly darker border for definition
-//            .setBorderWidth(1)
-//            .addData(10).addData(15).addData(8) // Example values for times 0, 1, 2
-//            .setStack("stack1"); // Assign to a stack group
-//
-//        // 3. Create Failure Dataset (Red)
-//        BarDataset failureDataset = new BarDataset()
-//            .setLabel("Failure")
-//            .setBackgroundColor("#FFB3BA") // Soft pastel red/pink
-//            .setBorderColor("#FF6961")     // Slightly darker border
-//            .setBorderWidth(1)
-//            .addData(2).addData(5).addData(3) // Example values
-//            .setStack("stack1"); // Assign to the SAME stack group
-//
-//        data.addDataset(successDataset);
-//        data.addDataset(failureDataset);
-//
-//        // 4. Configure Options (Ensure scales are stacked)
-//        BarOptions options = new BarOptions()
-//            .setResponsive(true)
-//            .setScales(new Scales()
-//                .addScale(ScaleAxis.X, new LinearScaleOptions().setStacked(true))
-//                .addScale(ScaleAxis.Y, new LinearScaleOptions().setStacked(true)));
-//
-//        // 5. Display the chart
-//        reachabilityChart.showChart(new BarChart(data).setOptions(options).toJson());
+            if (b == null) {
+                return;
+            }
 
-        // Or utilizing chartjs-java-model
-//        chart.showChart(new BarChart(
-//                new BarData().addLabels("A", "B").addDataset(new BarDataset().setLabel("X").addData(1).addData(2)))
-//                .toJson());
+            Node destCell = b.get("destCell");
+
+            Model projectGridModel = MobyDexRdfApiRaw.loadProjectGrid(projectId);
+
+            Table geoms = QueryExec.graph(projectGridModel.getGraph())
+                .query("""
+                    PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+                    SELECT ?wkt { ?s geo:hasGeometry/geo:asWKT ?wkt }
+                """)
+                .substitution("s", destCell)
+                .table();
+
+            Table tags = TableFactory.builder().addRowAndVars(BindingUtils.project(b, "cp", "co")).build();
+            Query query = OsmRdfApi.createQueryExportPois(Fragment.of(geoms).toFragment1(), Fragment.of(tags).toFragment2());
+
+            Table poiTable = QueryExecHTTP.service("https://data.aksw.org/mobydex")
+                .query(query).table();
+
+            Set<Geometry> detectedGeometries = ResultSetMapRendererL.addBindingsToLayer(converter, markerLayerGroup,
+                    poiTable.rows(), (layer, binding, v) -> {
+//                        Node s = b.get("s");
+//                        String str = s.toString();
+//                        cellIdToLayer.put(str, (LPath<?>) layer);
+                        // layer.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked('" + str + "')");
+//                        layer.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.target.options)");
+                    });
+
+
+//            Node geoNode = projectGridModel.wrapAsResource(destCell)
+//            		.getProperty(Geo.HAS_GEOMETRY_PROP)
+
+        });
     }
+
+    // public Table exec(Graph graph ,)
 
     /**
      * Table structure:
@@ -480,7 +486,7 @@ public class ReachabilityView extends VerticalLayout {
 
     public Map<Node, List<Binding>> computePoiDurations(String originCellIdStr) {
         Table poiTypeToCells = computePoiDurationsTable(originCellIdStr);
-        Query query = Fragment.of(poiTypeToCells).projectVarNames("cp", "co", "duration").toQuery();
+        Query query = Fragment.of(poiTypeToCells).projectVarNames("destCell", "cp", "co", "duration").toQuery();
 
         // Query query = QueryUtils.tableToQuery(poiTypeToCells);
         QueryExecutionFactoryQuery qef = q -> QueryExecution.dataset(DatasetFactory.empty()).query(q).build();
@@ -613,8 +619,8 @@ public class ReachabilityView extends VerticalLayout {
                     }
                 """).table();
 
-        Set<Geometry> detectedGeometries = ResultSetMapRendererL.addBindingsToLayer(converter, connectionGroup,
-                bindings.iterator(null), (layer, b, v) -> {
+        Set<Geometry> detectedGeometries = ResultSetMapRendererL.addBindingsToLayer(converter, gridLayerGroup,
+                bindings.rows(), (layer, b, v) -> {
                     Node s = b.get("s");
                     String str = s.toString();
                     cellIdToLayer.put(str, (LPath<?>) layer);

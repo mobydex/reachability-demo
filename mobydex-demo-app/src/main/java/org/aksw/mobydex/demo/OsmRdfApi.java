@@ -155,7 +155,7 @@ public class OsmRdfApi {
         return result;
     }
 
-    public static Query createQueryExportPois(Fragment1 geoms, Fragment2 tags) {
+    public static Query createQueryExportPoiIds(Fragment1 geoms, Fragment2 tags) {
         Query baseQuery = QueryFactory.create("""
             PREFIX spatial: <http://jena.apache.org/spatial#>
             PREFIX geo: <http://www.opengis.net/ont/geosparql#>
@@ -163,6 +163,38 @@ public class OsmRdfApi {
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
             SELECT DISTINCT ?s {
+              SERVICE <elt:geoms> { }
+              SERVICE <elt:tags> { }
+              SERVICE <loop:cache:> { # cache repeated spatial index lookups with the same query geom.
+                ?s spatial:intersectBoxGeom(?queryGeom) .
+                ?s geo:hasGeometry/geo:asWKT ?wkt
+                FILTER(geof:sfIntersects(?queryGeom, ?wkt))
+              }
+              FILTER EXISTS { # match criteria
+                ?s ?cp ?co .
+              }
+            }
+            """);
+
+        Element geomsElt = geoms.rename("queryGeom").getElement();
+        Element tagsElt = tags.rename("cp", "co").getElement();
+
+        Map<String, Element> map = new HashMap<>();
+        map.put("elt:geoms", geomsElt);
+        map.put("elt:tags", tagsElt);
+
+        Query result = QueryTransformOps.transform(baseQuery, new ElementTransformInjectNamedElement(map));
+        return result;
+    }
+
+    public static Query createQueryExportPois(Fragment1 geoms, Fragment2 tags) {
+        Query baseQuery = QueryFactory.create("""
+            PREFIX spatial: <http://jena.apache.org/spatial#>
+            PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+            PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+            SELECT ?s ?cp ?co ?wkt {
               SERVICE <elt:geoms> { }
               SERVICE <elt:tags> { }
               SERVICE <loop:cache:> { # cache repeated spatial index lookups with the same query geom.
