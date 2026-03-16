@@ -104,6 +104,7 @@ public class MainLayout
             // Sub-items for this project (settings etc.)
             projectItem.addItem(new SideNavItem("Project", ProjectSelectorView.class, p.getId()));
             projectItem.addItem(new SideNavItem("Dashboard", ReachabilityView.class, p.getId()));
+            projectItem.addItem(new SideNavItem("GeoSparql", GeoSparqlView.class, p.getId()));
             projectItem.addItem(new SideNavItem("POIs", PoiListView.class, p.getId()));
 //            projectItem.addItem(new SideNavItem("Settings", LandingPageView.class, p.getId()));
 //            projectItem.addItem(new SideNavItem("Members", LandingPageView.class, p.getId()));

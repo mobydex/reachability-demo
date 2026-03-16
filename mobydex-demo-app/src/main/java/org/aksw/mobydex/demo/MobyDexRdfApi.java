@@ -10,6 +10,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 import org.aksw.commons.io.util.PathUtils;
+import org.aksw.jenax.dataaccess.sparql.creator.FileSets;
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.shellgebra.exec.ListBuilder;
@@ -32,6 +33,14 @@ public class MobyDexRdfApi
     private Cache<List<String>, Object> cache;
     private Path basePath;
 
+    public static MobyDexRdfApi get() {
+        try {
+            return new MobyDexRdfApi();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public MobyDexRdfApi() throws IOException {
         basePath = Path.of(System.getProperty("user.home")).resolve(".cache/mobydex");
         Files.createDirectories(basePath);
@@ -43,10 +52,34 @@ public class MobyDexRdfApi
         return List.of("projects", Long.toString(projectId));
     }
 
+    List<String> createKeyProjectGridFile(long projectId) {
+        List<String> gridFileKey = ListBuilder.ofStrings(getProjectGridKey(projectId)).add("grid.ttl").buildList();
+        return gridFileKey;
+    }
+
     public Model loadProjectGrid(long projectId) {
-        List<String> projectKey = ListBuilder.ofStrings(getProjectGridKey(projectId)).add("grid.ttl").buildList();
+        List<String> projectKey = createKeyProjectGridFile(projectId);
         Model result = loadModel(projectKey, () -> MobyDexRdfApiRaw.loadProjectGrid(projectId));
         return result;
+    }
+
+    public boolean isProjectGridLoaded(long projectId) {
+        List<String> projectGridFileKey = createKeyProjectGridFile(projectId);
+        Path path = PathUtils.resolve(basePath, projectGridFileKey);
+        return Files.exists(path);
+    }
+
+
+    public List<String> createKeyPoisFile(long projectId) {
+        List<String> poiKey = ListBuilder.ofStrings(getProjectGridKey(projectId)).add("pois.ttl").buildList();
+        return poiKey;
+    }
+
+    // HACK - this should be configurable per poi type.
+    public boolean isProjectPoisLoaded(long projectId) {
+        List<String> key = createKeyPoisFile(projectId);
+        Path path = PathUtils.resolve(basePath, key);
+        return Files.exists(path);
     }
 
     /** Generic cached model loading. */
@@ -82,6 +115,14 @@ public class MobyDexRdfApi
         return result;
     }
 
+    /**
+     * For a given project, annotate each cell with how many POIs
+     * are contained in it.
+     *
+     * @param projectId
+     * @param tagsFragment
+     * @return
+     */
     public Model loadPoiHistogramModel(long projectId, Fragment2 tagsFragment) {
         List<String> poiKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
                 .add("pois.ttl").buildList();
@@ -110,6 +151,16 @@ public class MobyDexRdfApi
         return r;
     }
 
+
+    public long getComputedCells(long projectId, long computationId) {
+        List<String> computationKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
+                .add("computation" + computationId).buildList();
+                // .add("cell" + originCellId + ".ttl")
+
+        Path path = PathUtils.resolve(basePath, computationKey);
+        long result = FileSets.countFlat(path, "cell[0-9][0-9]*.ttl");
+        return result;
+    }
 
     public Resource loadComputation(long projectId, long computationId, long originCellId) {
         List<String> computationKey = ListBuilder.ofStrings(getProjectGridKey(projectId))

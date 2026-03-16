@@ -29,7 +29,6 @@ import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout.Orientation;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.PreserveOnRefresh;
 import com.vaadin.flow.router.Route;
 
 import org.aksw.commons.index.StorageComposers;
@@ -41,6 +40,7 @@ import org.aksw.jenax.arq.util.tuple.adapter.TupleBridgeBinding;
 import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
+import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
 import org.aksw.mobydex.demo.OsmRdfApi.ElementTransformInjectNamedElement;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
@@ -78,7 +78,6 @@ import software.xdev.vaadin.maps.leaflet.layer.LLayer;
 import software.xdev.vaadin.maps.leaflet.layer.LLayerGroup;
 import software.xdev.vaadin.maps.leaflet.layer.raster.LTileLayer;
 import software.xdev.vaadin.maps.leaflet.layer.vector.LPath;
-import software.xdev.vaadin.maps.leaflet.layer.vector.LPolygon;
 import software.xdev.vaadin.maps.leaflet.layer.vector.LPolylineOptions;
 import software.xdev.vaadin.maps.leaflet.map.LMap;
 import software.xdev.vaadin.maps.leaflet.map.LMapZoomPanOptions;
@@ -390,8 +389,8 @@ public class ReachabilityView extends VerticalLayout {
             .setStack("stack1"); // Assign to the SAME stack group
 
         // BarDataset barDataset = new BarDataset();
-        successDataset.setLabel("In-Reach POI Type Coverage by Travel Time");
-        failureDataset.setLabel("Out-of-Reach POI Type Coverage by Travel Time");
+        successDataset.setLabel("On-Time POI type ratio");
+        failureDataset.setLabel("Late-Arrival POI type ratio");
         Set<Binding> successPoiTypes = new HashSet<>();
         Set<Binding> failurePoiTypes = new HashSet<>();
 

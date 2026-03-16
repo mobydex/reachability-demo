@@ -46,10 +46,10 @@
 		</dependency>
 
 		<dependency>
-		    <groupId>org.springframework.boot</groupId>
-		    <artifactId>spring-boot-devtools</artifactId>
-		    <scope>runtime</scope>     <!-- or developmentOnly in Gradle -->
-		    <optional>true</optional>  <!-- common in starters -->
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>     <!-- or developmentOnly in Gradle -->
+			<optional>true</optional>  <!-- common in starters -->
 		</dependency>
 
 		<dependency>
@@ -94,7 +94,17 @@
 			<groupId>org.aksw.scaseco.vaadin</groupId>
 			<artifactId>vaadin-jena-core</artifactId>
 		</dependency>
-		
+
+		<dependency>
+			<groupId>org.aksw.scaseco.vaadin</groupId>
+			<artifactId>vaadin-jena-core</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.aksw.vaadin.yasqe</groupId>
+			<artifactId>vaadin-yasqe-flow</artifactId>
+			<version>0.5.2-SNAPSHOT</version>
+		</dependency>
 		<!--
 		<dependency>
 			<groupId>org.aksw.jenax</groupId>

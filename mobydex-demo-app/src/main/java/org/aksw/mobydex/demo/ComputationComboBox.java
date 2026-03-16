@@ -30,6 +30,7 @@ public class ComputationComboBox extends ComboBox<Computation> {
     // Assuming you have this record / DTO (adjust fields as needed)
     public record Computation(
         Long id,
+        Long projectId,
         String type,
         String state,
 //        String key,
