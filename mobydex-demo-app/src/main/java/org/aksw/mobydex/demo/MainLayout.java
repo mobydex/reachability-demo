@@ -102,6 +102,7 @@ public class MainLayout
             SideNavItem projectItem = new SideNavItem(p.getName(), ReachabilityView.class, p.getId());
 
             // Sub-items for this project (settings etc.)
+            projectItem.addItem(new SideNavItem("Project", ProjectSelectorView.class, p.getId()));
             projectItem.addItem(new SideNavItem("Dashboard", ReachabilityView.class, p.getId()));
             projectItem.addItem(new SideNavItem("POIs", PoiListView.class, p.getId()));
 //            projectItem.addItem(new SideNavItem("Settings", LandingPageView.class, p.getId()));

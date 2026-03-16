@@ -29,6 +29,7 @@ import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout.Orientation;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.router.PageTitle;
+import com.vaadin.flow.router.PreserveOnRefresh;
 import com.vaadin.flow.router.Route;
 
 import org.aksw.commons.index.StorageComposers;
@@ -88,6 +89,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 @Route(value = "reachability", layout = MainLayout.class)
 @PageTitle("Demo")
+// @PreserveOnRefresh
 public class ReachabilityView extends VerticalLayout {
     private static final long serialVersionUID = 1L;
 
@@ -219,6 +221,7 @@ public class ReachabilityView extends VerticalLayout {
         add(loadGridBtn);
         loadGridBtn.addClickListener(ev -> {
             loadProjectGrid();
+            refreshStats();
         });
         controlBar.add(loadGridBtn);
 
@@ -324,7 +327,6 @@ public class ReachabilityView extends VerticalLayout {
                         // layer.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked('" + str + "')");
 //                        layer.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.target.options)");
                     });
-
 
 //            Node geoNode = projectGridModel.wrapAsResource(destCell)
 //            		.getProperty(Geo.HAS_GEOMETRY_PROP)
@@ -462,8 +464,12 @@ public class ReachabilityView extends VerticalLayout {
         }
 
         // FIXME Get the ID via the project model!
-        String tmp = originCellIdStr
-                .substring("https://mobydex.locoslab.com/controller-service/projects/2#cell".length());
+        String prefix = "https://mobydex.locoslab.com/controller-service/projects/2#cell";
+        if (!originCellIdStr.startsWith(prefix)) {
+            return TableFactory.create();
+        }
+
+        String tmp = originCellIdStr.substring(prefix.length());
         long originCellId = Long.parseLong(tmp);
 
         // long originCellId = 271;
@@ -636,7 +642,6 @@ public class ReachabilityView extends VerticalLayout {
 //            opts.setDuration(1.0);
 //            map.flyToBounds(bounds, opts);
         }
-
     }
 
     private MapContainer createLMap() {
@@ -657,43 +662,11 @@ public class ReachabilityView extends VerticalLayout {
         // Set what part of the world should be shown
         map.setView(new LLatLng(reg, 49.6751, 12.1607), 17);
 
-//        LLatLng locationSchnitzel = new LLatLng(this.reg, 49.673800, 12.160113);
-//        LMarker markerSchnitzel = new LMarker(this.reg, locationSchnitzel)
-        // .bindPopup("Schnitzel")
-//            ;
-
-        List<LLatLng> points = List.of(new LLatLng(reg, 51.51, -0.12), new LLatLng(reg, 51.49, -0.08),
-                new LLatLng(reg, 51.50, -0.06), new LLatLng(reg, 51.51, -0.12) // close the ring
-        );
-
-        LPolylineOptions options = new LPolylineOptions();
-        options.setColor("blue");
-        options.setFillColor("lightblue");
-        options.setFillOpacity(0.5);
-        // options.set... other style props, popup, tooltip etc.
-
-        LPolygon polygon = new LPolygon(reg, points, options);
-
-        // Optional: attach popup / tooltip directly (shows on click/hover)
-        polygon.bindPopup("This is polygon X!<br>ID: 123");
-        polygon.bindTooltip("Polygon X");
-        polygon.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.target.options)");
-        // polygon.on("click", "e => console.log(e)");
-
-        // Add to map (or to a LayerGroup / FeatureGroup first if managing many)
-        map.addLayer(polygon);
-
         // See also
         // https://vaadin.com/docs/latest/create-ui/element-api/client-server-rpc
         map.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.latlng)");
         // locationSchnitzel.list
 
-        // Create a new marker
-//        new LMarker(reg, new LLatLng(reg, 49.6756, 12.1610))
-//            // Bind a popup which is displayed when clicking the marker
-//            .bindPopup("XDEV Software")
-//            // Add it to the map
-//            .addTo(map);
         return mapContainer;
     }
 
@@ -751,3 +724,38 @@ public class ReachabilityView extends VerticalLayout {
     }
 
 }
+
+
+
+// Create a new marker
+//new LMarker(reg, new LLatLng(reg, 49.6756, 12.1610))
+//    // Bind a popup which is displayed when clicking the marker
+//    .bindPopup("XDEV Software")
+//    // Add it to the map
+//    .addTo(map);
+
+//LLatLng locationSchnitzel = new LLatLng(this.reg, 49.673800, 12.160113);
+//LMarker markerSchnitzel = new LMarker(this.reg, locationSchnitzel)
+// .bindPopup("Schnitzel")
+//  ;
+
+//List<LLatLng> points = List.of(new LLatLng(reg, 51.51, -0.12), new LLatLng(reg, 51.49, -0.08),
+//      new LLatLng(reg, 51.50, -0.06), new LLatLng(reg, 51.51, -0.12) // close the ring
+//);
+
+//LPolylineOptions options = new LPolylineOptions();
+//options.setColor("blue");
+//options.setFillColor("lightblue");
+//options.setFillOpacity(0.5);
+// options.set... other style props, popup, tooltip etc.
+
+//LPolygon polygon = new LPolygon(reg, points, options);
+//
+//// Optional: attach popup / tooltip directly (shows on click/hover)
+//polygon.bindPopup("This is polygon X!<br>ID: 123");
+//polygon.bindTooltip("Polygon X");
+//polygon.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.target.options)");
+// polygon.on("click", "e => console.log(e)");
+
+// Add to map (or to a LayerGroup / FeatureGroup first if managing many)
+//map.addLayer(polygon);
