@@ -258,6 +258,10 @@ public class GeoSparqlBrowser extends VerticalLayout {
         add(resultSetGrid);
     }
 
+    public Yasqe getYasqe() {
+        return yasqe;
+    }
+
     private MapContainer createLMap() {
         // Create and add the MapContainer (which contains the map) to the UI
         MapContainer mapContainer = new MapContainer(reg);
