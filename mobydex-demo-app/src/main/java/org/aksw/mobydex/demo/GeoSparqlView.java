@@ -52,7 +52,7 @@ public class GeoSparqlView
               }
             }
             LIMIT 10
-        """);
+            """);
 
         Resource r2 = ModelFactory.createDefaultModel().createResource();
         r2.addLiteral(RDFS.label, "Zensus");
@@ -77,7 +77,7 @@ public class GeoSparqlView
               #FILTER(?avgAge > 30 && ?avgAge < 50)
             }
             LIMIT 10
-        """);
+            """);
 
         ComboBox<Resource> comboBox = new ComboBox<>();
         comboBox.setLabel("Examples");
