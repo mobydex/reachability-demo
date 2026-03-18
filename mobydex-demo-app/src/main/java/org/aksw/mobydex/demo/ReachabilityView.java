@@ -591,7 +591,7 @@ public class ReachabilityView extends VerticalLayout {
 
         // BarDataset barDataset = new BarDataset();
         // successDataset.setLabel("In-Reach POI Type Coverage by Travel Time");
-        dataset.setLabel("Out-of-Reach POI Type Coverage by Travel Time");
+        dataset.setLabel("Quantity");
         Set<Binding> successPoiTypes = new HashSet<>();
 
         BarData barData = new BarData();
