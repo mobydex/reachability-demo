@@ -46,9 +46,9 @@ public class GeoSparqlView
             # FROM <https://mobydex.org/resource/regiostar/>
             {
               GRAPH <https://mobydex.org/resource/regiostar/> {
+                ?s <https://mobydex.org/resource/regiostar/RS7> 75 .
                 ?s geo:hasGeometry ?g .
                 ?g geo:asWKT ?wkt .
-                ?s <https://mobydex.org/resource/regiostar/RS7> 75
               }
             }
             LIMIT 10
@@ -73,10 +73,10 @@ public class GeoSparqlView
                 ?obs eg:averageAge ?avgAge .
                 # ?obs ?p ?o
               }
-              FILTER (?inhabitants > 1000 && ?inhabitants < 10000)
-              FILTER(?avgAge > 30 && ?avgAge < 50)
+              #FILTER (?inhabitants > 1000 && ?inhabitants < 10000)
+              #FILTER(?avgAge > 30 && ?avgAge < 50)
             }
-            LIMIT 1000
+            LIMIT 10
         """);
 
         ComboBox<Resource> comboBox = new ComboBox<>();
