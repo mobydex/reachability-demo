@@ -197,7 +197,7 @@ public class ReachabilityView extends VerticalLayout {
     public static String fmtDurationS2M(Long durationSeconds) {
         return (durationSeconds == null || durationSeconds.equals(Long.MAX_VALUE))
             ? "-"
-            : decimalFormat.format(durationSeconds / 60.0) + "m";
+            : decimalFormat.format(durationSeconds / 60.0) + "min";
     }
 
     public ReachabilityView() {
@@ -436,19 +436,25 @@ public class ReachabilityView extends VerticalLayout {
             CellStyles.grey(style); // default color
 
             Node cellNode = NodeFactory.createURI(cellId);
-            List<Binding> bindings = cellToBinding.get(cellNode);
-            if (bindings != null) {
-                for (Binding b : bindings) {
-                    Long duration = BindingUtils.tryGetNumber(b, "duration").map(Number::longValue).orElse(null);
-                    if (duration != null) {
-                        if (duration < durationThreshold) {
-                            CellStyles.green(style);
-                        } else {
-                            CellStyles.red(style);
-                        }
+            List<Binding> bindings = cellToBinding.getOrDefault(cellNode, List.of());
+            Long poiDuration = null;
+            for (Binding b : bindings) {
+                Long duration = BindingUtils.tryGetNumber(b, "duration").map(Number::longValue).orElse(null);
+                poiDuration = duration;
+                if (duration != null) {
+                    if (duration < durationThreshold) {
+                        CellStyles.green(style);
+                    } else {
+                        CellStyles.red(style);
                     }
                 }
             }
+            if (poiDuration != null) {
+                String popupStr = "Reachable in " + fmtDurationS2M(poiDuration) + "<br />"
+                                  + bindings.stream().map(b -> toOsmLabel(b, "cp", "co")).collect(Collectors.joining("<br />"));
+                cellPath.bindPopup(popupStr);
+            }
+
             if (Objects.equals(cellId, focusCell)) {
                 CellStyles.purple(style);
                 // CellStyles.selected(style);
@@ -611,6 +617,13 @@ public class ReachabilityView extends VerticalLayout {
 
         BarChart barChart = new BarChart(barData).setOptions(options);
         cellDetailsChart.showChart(barChart.toJson());
+    }
+
+    public static String toOsmLabel(Binding b, String cp, String co) {
+        String poiTypeLabel = ("" + b.get(cp)).replace("https://www.openstreetmap.org/wiki/Key:", "")
+        + " " + b.get(co);
+        return poiTypeLabel;
+
     }
 
     public void loadProjectGrid() {

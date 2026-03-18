@@ -17,6 +17,7 @@ import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.page.ColorScheme;
 import com.vaadin.flow.component.page.ColorScheme.Value;
 import com.vaadin.flow.component.page.Page;
+import com.vaadin.flow.component.sidenav.HasSideNavItems;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.component.tabs.Tabs;
@@ -53,10 +54,6 @@ public class MainLayout
 //        SideNavItem allProjects = new SideNavItem("All Projects", ReachabilityView.class);
 //        nav.addItem(allProjects);
 
-        // Dynamically populated project sections (or pre-build if projects are few/static)
-        // For real apps → populate in constructor or via service + listener
-        refreshProjectItems();  // see below
-
         HorizontalLayout navbarLayout = new HorizontalLayout();
         menuBar = new MenuBar();
 
@@ -87,8 +84,13 @@ public class MainLayout
         setPrimarySection(Section.DRAWER);
         addToDrawer(new Scroller(nav));  // Scroller for overflow
 
-        SideNavItem landingPage = new SideNavItem("Home", LandingPageView.class);
+        SideNavItem landingPage = new SideNavItem("Home", HomeView.class, VaadinIcon.HOME.create());
         nav.addItem(landingPage);
+
+        // Dynamically populated project sections (or pre-build if projects are few/static)
+        // For real apps → populate in constructor or via service + listener
+        refreshProjectItems();  // see below
+
     }
 
     private void refreshProjectItems() {
@@ -98,19 +100,20 @@ public class MainLayout
         // Example: assume you have current/active projects from somewhere
         List<Project> projects = List.of(new Project("P1", "p1")); //, new Project("P2", "p2"));
 
+        HasSideNavItems projectItem = nav;
         for (Project p : projects) {
-            SideNavItem projectItem = new SideNavItem(p.getName(), ReachabilityView.class, p.getId());
+            // SideNavItem projectItem = new SideNavItem(p.getName(), ReachabilityView.class, p.getId());
 
             // Sub-items for this project (settings etc.)
-            projectItem.addItem(new SideNavItem("Project", ProjectSelectorView.class, p.getId()));
-            projectItem.addItem(new SideNavItem("Dashboard", ReachabilityView.class, p.getId()));
-            projectItem.addItem(new SideNavItem("GeoSparql", GeoSparqlView.class, p.getId()));
-            projectItem.addItem(new SideNavItem("POIs", PoiListView.class, p.getId()));
+            projectItem.addItem(new SideNavItem("Project", ProjectSelectorView.class, p.getId(), VaadinIcon.FOLDER_O.create()));
+            projectItem.addItem(new SideNavItem("GeoSparql", GeoSparqlView.class, p.getId(), VaadinIcon.GLOBE_WIRE.create()));
+            projectItem.addItem(new SideNavItem("POIs", PoiListView.class, p.getId(), VaadinIcon.MAP_MARKER.create()));
+            projectItem.addItem(new SideNavItem("Dashboard", ReachabilityView.class, p.getId(), VaadinIcon.DASHBOARD.create()));
 //            projectItem.addItem(new SideNavItem("Settings", LandingPageView.class, p.getId()));
 //            projectItem.addItem(new SideNavItem("Members", LandingPageView.class, p.getId()));
 //            projectItem.addItem(new SideNavItem("Tasks", LandingPageView.class, p.getId()));
 
-            nav.addItem(projectItem);
+            // nav.addItem(projectItem);
         }
     }
 

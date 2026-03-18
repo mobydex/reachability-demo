@@ -188,6 +188,7 @@ public class OsmRdfApi {
     }
 
     public static Query createQueryExportPois(Fragment1 geoms, Fragment2 tags) {
+        // TODO Make graph name(s) configurable to boost spatial lookups
         Query baseQuery = QueryFactory.create("""
             PREFIX spatial: <http://jena.apache.org/spatial#>
             PREFIX geo: <http://www.opengis.net/ont/geosparql#>
@@ -198,9 +199,11 @@ public class OsmRdfApi {
               SERVICE <elt:geoms> { }
               SERVICE <elt:tags> { }
               SERVICE <loop:cache:> { # cache repeated spatial index lookups with the same query geom.
-                ?s spatial:intersectBoxGeom(?queryGeom) .
-                ?s geo:hasGeometry/geo:asWKT ?wkt
-                FILTER(geof:sfIntersects(?queryGeom, ?wkt))
+                #GRAPH <https://data.mobydex.org/osm/20250903/15mincity/> {
+                  ?s spatial:intersectBoxGeom(?queryGeom) .
+                  ?s geo:hasGeometry/geo:asWKT ?wkt
+                  FILTER(geof:sfIntersects(?queryGeom, ?wkt))
+                #}
               }
               FILTER EXISTS { # match criteria
                 ?s ?cp ?co .
