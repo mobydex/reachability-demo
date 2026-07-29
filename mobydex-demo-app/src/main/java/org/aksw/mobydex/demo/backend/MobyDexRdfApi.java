@@ -233,26 +233,37 @@ public class MobyDexRdfApi {
                 .add("cell" + originCellId + ".ttl").buildList();
         Resource result = (Resource)fileCache.getCache().get(computationKey, k -> {
             Resource r;
-            Path path = PathUtils.resolve(fileCache.getCacheBasePath(), computationKey);
-            if (Files.exists(path)) {
-                Model m = RDFDataMgr.loadModel(path.toString());
-                String id = MobyDexRdfApiRaw.createOriginCellId(projectId, computationId, originCellId);
-                r = m.createResource(id);
-            } else {
-                Path tmpFile;
-                try {
-                    if (path.getParent() != null) {
-                        Files.createDirectories(path.getParent());
-                    }
-                    tmpFile = Files.createTempFile("computation" + computationId, ".ttl");
-                    r = loadComputationNew(projectId, computationId, originCellId);
-                    IOX.safeWriteOrCopy(path, tmpFile, out -> RDFDataMgr.write(out, r.getModel(), RDFFormat.TURTLE_BLOCKS));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
+            try {
+                r = loadComputationNew(projectId, computationId, originCellId);
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
             }
             return r;
         });
         return result;
+
+//        Resource result = (Resource)fileCache.getCache().get(computationKey, k -> {
+//            Resource r;
+//            Path path = PathUtils.resolve(fileCache.getCacheBasePath(), computationKey);
+//            if (Files.exists(path)) {
+//                Model m = RDFDataMgr.loadModel(path.toString());
+//                String id = MobyDexRdfApiRaw.createOriginCellId(projectId, computationId, originCellId);
+//                r = m.createResource(id);
+//            } else {
+//                Path tmpFile;
+//                try {
+//                    if (path.getParent() != null) {
+//                        Files.createDirectories(path.getParent());
+//                    }
+//                    tmpFile = Files.createTempFile("computation" + computationId, ".ttl");
+//                    r = loadComputationNew(projectId, computationId, originCellId);
+//                    IOX.safeWriteOrCopy(path, tmpFile, out -> RDFDataMgr.write(out, r.getModel(), RDFFormat.TURTLE_BLOCKS));
+//                } catch (Exception e) {
+//                    throw new RuntimeException(e);
+//                }
+//            }
+//            return r;
+//        });
+//        return result;
     }
 }

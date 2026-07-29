@@ -61,23 +61,31 @@ public class MainMobyDexDemoExamples {
         MobyDexRdfApi mobyDexApi = MobyDexRdfApi.get();
 
         // int projectId = 2;
+        // int projectId = project.getProjectId();
+        int computationId = 70;
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
         Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
 
         ComputationDao dao = new ComputationDao(ConfigMobyDexDemo.newRestTemplate(), ConfigMobyDexDemo.baseUrl);
         System.out.println("Got projectId: " + dao.getProjectId(70));
 
-        Resource originCell = mobyDexApi.loadComputation(2, 70, 271);
+        // Resource originCell = mobyDexApi.loadComputation(2, 70, 271);
 
         int i = 0;
+
         for (GridCell projectGridCell : project.getCells()) {
             if (i > 5) {
                 break;
             }
             ++i;
 
+            int projectId = projectGridCell.getProject().getProjectId();
+            /// projectGridCell.get
+            Resource originCell = mobyDexApi.loadComputation(projectId, 70, projectGridCell.getCellId());
+
+
             System.out.println("Table for " + projectGridCell.toString());
-            Table table = OsmRdfApi.createQueryPoiTypeInRange(projectGridCell, poiTypeHistogramModel, tagsFragment, 1, MainPlaygroundMobyDex.durationProperty);
+            Table table = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MainPlaygroundMobyDex.durationProperty);
             RowSetOps.out(System.out, table.toRowSet());
         }
     }

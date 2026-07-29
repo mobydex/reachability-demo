@@ -258,7 +258,7 @@ public class MobyDexRdfApiRaw {
      *
      * Model example:
      * <pre>{@code
-     * <https://mobydex.locoslab.com/controller-service//computations/70/directions?origins=271&steps=false&routes=false#dest=510>
+     * <https://mobydex.locoslab.com/controller-service/computations/70/directions?origins=271&steps=false&routes=false#dest=510>
      *   eg:computationId    70;
      *   eg:destinationCell  <https://mobydex.locoslab.com/controller-service/projects/2#cell510>;
      *   eg:durationAvg      7060.0;
@@ -306,7 +306,7 @@ public class MobyDexRdfApiRaw {
             # SELECT ?apiBaseUrl ?projectId ?project ?computationId ?originCellId ?origin ?originCell ?inputJson ?s ?destinationCellId ?destinationCell ?durationMin ?durationMax ?durationAvg ?durationMedian {
             {
               # BIND(?origin AS ?originCellId)
-              BIND(STR(?apiBaseUrl) + "/computations/" + STR(?computationId)
+              BIND(STR(?apiBaseUrl) + "computations/" + STR(?computationId)
                 + "/directions?origins=" + STR(?origin)
                 # "&destinations=" + STR(?destinationCellId)
                 + "&steps=false&routes=false" AS ?url)
