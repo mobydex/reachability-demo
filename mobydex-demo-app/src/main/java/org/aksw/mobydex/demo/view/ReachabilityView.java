@@ -1,6 +1,5 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.view;
 
-import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,7 +40,13 @@ import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFa
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
-import org.aksw.mobydex.demo.OsmRdfApi.ElementTransformInjectNamedElement;
+import org.aksw.mobydex.demo.CellStyles;
+import org.aksw.mobydex.demo.MainLayout;
+import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
+import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
+import org.aksw.mobydex.demo.backend.OsmRdfApi;
+import org.aksw.mobydex.demo.backend.OsmRdfApi.ElementTransformInjectNamedElement;
+import org.aksw.mobydex.demo.component.TabSheet;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
 import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
@@ -152,48 +157,6 @@ public class ReachabilityView extends VerticalLayout {
 
     private GridSparqlBinding poiReachabilityGrid = new GridSparqlBinding();
 
-    public static class CellStyles {
-        public static LPolylineOptions grey() {
-            return grey(new LPolylineOptions());
-        }
-
-        public static LPolylineOptions blue() {
-            return blue(new LPolylineOptions());
-        }
-
-        public static LPolylineOptions green() {
-            return blue(new LPolylineOptions());
-        }
-
-        public static LPolylineOptions red() {
-            return blue(new LPolylineOptions());
-        }
-
-        public static LPolylineOptions grey(LPolylineOptions options) {
-            return options.withColor("grey").withFillColor("lightgrey").withFillOpacity(0.5);
-        }
-
-        public static LPolylineOptions blue(LPolylineOptions options) {
-            return options.withColor("blue").withFillColor("lightblue").withFillOpacity(0.5);
-        }
-
-        public static LPolylineOptions green(LPolylineOptions options) {
-            return options.withColor("green").withFillColor("lightgreen").withFillOpacity(0.5);
-        }
-
-        public static LPolylineOptions red(LPolylineOptions options) {
-            return options.withColor("red").withFillColor("orange").withFillOpacity(0.5);
-        }
-
-        public static LPolylineOptions purple(LPolylineOptions options) {
-            return options.withColor("purple").withOpacity(0.8).withFillColor("purple").withFillOpacity(0.8);
-        }
-
-//        public static LPolylineOptions selected(LPolylineOptions options) {
-//            return options.withStroke(true).withColor("orange").withOpacity(0.5);
-//        }
-    }
-
     public static String fmtDurationS2M(Long durationSeconds) {
         return (durationSeconds == null || durationSeconds.equals(Long.MAX_VALUE))
             ? "-"
@@ -203,7 +166,7 @@ public class ReachabilityView extends VerticalLayout {
     public ReachabilityView() {
         try {
             mobyDexApi = new MobyDexRdfApi();
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
@@ -487,7 +450,7 @@ public class ReachabilityView extends VerticalLayout {
 
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
 
-        Model poiTypeHistogramModel = mobyDexApi.loadPoiHistogramModel(projectId, tagsFragment);
+        Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(projectId, tagsFragment);
 
         Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
         Table poiTypeToCells = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1,
@@ -531,7 +494,7 @@ public class ReachabilityView extends VerticalLayout {
 
         Node cellNode = NodeFactory.createURI(infoCell);
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
-        Model poiTypeHistogramModel = mobyDexApi.loadPoiHistogramModel(projectId, tagsFragment);
+        Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(projectId, tagsFragment);
 
         Query baseQuery = QueryFactory.create("""
             PREFIX eg: <http://www.example.org/>
@@ -553,10 +516,8 @@ public class ReachabilityView extends VerticalLayout {
             """);
         Element tagsElt = tagsFragment.rename("cp", "co").getElement();
 
-        Map<String, Element> map = new HashMap<>();
-        map.put("elt:tags", tagsElt);
-
-        Query query = QueryTransformOps.transform(baseQuery, new ElementTransformInjectNamedElement(map));
+        Query query = QueryTransformOps.transform(baseQuery,
+            ElementTransformInjectNamedElement.of(Map.of("elt:tags", tagsElt)));
 
         Table table = QueryExec.graph(poiTypeHistogramModel.getGraph()).query(query)
             .substitution("cell", cellNode)
@@ -692,7 +653,9 @@ public class ReachabilityView extends VerticalLayout {
         return layer;
     }
 
-    // This server side method will be called when the map is clicked
+    /**
+     * This server side method will be called when the map is clicked.
+     */
     @ClientCallable
     public void mapClicked(JsonNode input) {
         if (input.isString()) {

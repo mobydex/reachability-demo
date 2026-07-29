@@ -1,4 +1,4 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.backend;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import org.aksw.jenax.sparql.fragment.api.Fragment1;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
+import org.aksw.mobydex.demo.FileUtils;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.query.Query;
@@ -44,12 +45,14 @@ public class OsmRdfApi {
 
         Model unionModel = ModelFactory.createUnion(projectGridCell.getModel(), poiTypeHistogram);
 
+        //RDFDataMgr.write(System.out, unionModel, RDFFormat.TURTLE_PRETTY);
+
         Query baseQuery = QueryFactory.create("""
             PREFIX eg: <http://www.example.org/>
-            PREFIX  geo:  <http://www.opengis.net/ont/geosparql#>
-            PREFIX  spatial: <http://jena.apache.org/spatial#>
-            PREFIX  geof: <http://www.opengis.net/def/function/geosparql/>
-            PREFIX  rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX geo:  <http://www.opengis.net/ont/geosparql#>
+            PREFIX spatial: <http://jena.apache.org/spatial#>
+            PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
+            PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
             SELECT * {
               BIND($ORIGIN_CELL AS ?originCell)
@@ -94,10 +97,8 @@ public class OsmRdfApi {
 
         Element tagsElt = tags.rename("cp", "co").getElement();
 
-        Map<String, Element> map = new HashMap<>();
-        map.put("elt:tags", tagsElt);
-
-        Query query = QueryTransformOps.transform(baseQuery, new ElementTransformInjectNamedElement(map));
+        Query query = QueryTransformOps.transform(baseQuery,
+            ElementTransformInjectNamedElement.of(Map.of("elt:tags", tagsElt)));
         System.out.println(query);
         FileUtils.write("/tmp/union.ttl", out -> RDFDataMgr.write(out, unionModel, RDFFormat.TURTLE_BLOCKS));
         return QueryExec.graph(unionModel.getGraph()).query(query).table();
@@ -130,9 +131,12 @@ public class OsmRdfApi {
                 SERVICE <elt:geoms> { }
                 SERVICE <elt:tags> { }
                 SERVICE <loop:cache:>
-                  { ?s    spatial:intersectBoxGeom  ( ?cellGeom ) .
-                    ?s geo:hasGeometry/geo:asWKT ?wkt
-                    FILTER geof:sfIntersects(?cellGeom, ?wkt)
+                  {
+                    GRAPH <https://data.mobydex.org/osm/20250903/15mincity/> {
+                      ?s    spatial:intersectBoxGeom  ( ?cellGeom ) .
+                      ?s geo:hasGeometry/geo:asWKT ?wkt
+                      FILTER geof:sfIntersects(?cellGeom, ?wkt)
+                    }
                   }
                 FILTER EXISTS { # match criteria
                   ?s ?cp ?co .
@@ -147,11 +151,11 @@ public class OsmRdfApi {
         Element geomsElt = geoms.rename("cell", "cellGeom").getElement();
         Element tagsElt = tags.rename("cp", "co").getElement();
 
-        Map<String, Element> map = new HashMap<>();
-        map.put("elt:geoms", geomsElt);
-        map.put("elt:tags", tagsElt);
+        Map<String, Element> map = Map.of(
+            "elt:geoms", geomsElt,
+            "elt:tags", tagsElt);
 
-        Query result = QueryTransformOps.transform(baseQuery, new ElementTransformInjectNamedElement(map));
+        Query result = QueryTransformOps.transform(baseQuery, ElementTransformInjectNamedElement.of(map));
         return result;
     }
 
@@ -269,9 +273,13 @@ public class OsmRdfApi {
 
         public static final String prefix = "urn:x-arq:var:";
 
-        public ElementTransformInjectNamedElement(Map<String, Element> map) {
+        protected ElementTransformInjectNamedElement(Map<String, Element> map) {
             super();
             this.map = Objects.requireNonNull(map);
+        }
+
+        public static ElementTransformInjectNamedElement of(Map<String, Element> map) {
+            return new ElementTransformInjectNamedElement(map);
         }
 
         @Override

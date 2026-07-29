@@ -100,6 +100,12 @@
 			<artifactId>vaadin-yasqe-flow</artifactId>
 			<version>0.5.2-SNAPSHOT</version>
 		</dependency>
+		
+		<dependency>
+			<groupId>org.aksw.jenax</groupId>
+			<artifactId>jenax-models-geosparql</artifactId>
+		</dependency>
+
 		<!--
 		<dependency>
 			<groupId>org.aksw.jenax</groupId>
@@ -135,6 +141,11 @@
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-annotations</artifactId>
 		</dependency>
 
 
@@ -209,6 +220,34 @@
 						<goals>
 							<goal>prepare-frontend</goal>
 						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.openapitools</groupId>
+				<artifactId>openapi-generator-maven-plugin</artifactId>
+				<version>7.4.0</version> <!-- Use the latest stable version -->
+				<executions>
+					<execution>
+						<goals>
+							<goal>generate</goal>
+						</goals>
+						<configuration>
+							<skip>true</skip>
+							<inputSpec>
+								${project.basedir}/src/main/resources/openapi.yaml</inputSpec>
+							<generatorName>java</generatorName>
+							<library>resttemplate</library> <!-- Options: webclient,
+							resttemplate, native, feign -->
+							<apiPackage>com.example.client.api</apiPackage>
+							<modelPackage>com.example.client.model</modelPackage>
+							<configOptions>
+								<serializationLibrary>jackson</serializationLibrary>
+								<useJakartaEe>true</useJakartaEe> <!-- For modern
+								Spring Boot 3+ / Jakarta projects -->
+							</configOptions>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>

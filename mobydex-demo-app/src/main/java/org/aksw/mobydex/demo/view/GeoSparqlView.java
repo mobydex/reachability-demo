@@ -1,4 +1,4 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.view;
 
 import java.util.List;
 
@@ -8,6 +8,8 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
 import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
+import org.aksw.mobydex.demo.MainLayout;
+import org.aksw.mobydex.demo.component.GeoSparqlBrowser;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;

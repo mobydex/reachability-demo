@@ -1,12 +1,10 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.component;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
-import java.util.List;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -15,31 +13,22 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.data.provider.DataProvider;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 
-import org.aksw.mobydex.demo.ProjectComboBox.Project;
-import org.springframework.web.client.RestTemplate;
+import org.aksw.mobydex.demo.backend.ProjectDao;
+import org.aksw.mobydex.demo.backend.ProjectDao.Project;
 
 public class ProjectComboBox extends ComboBox<Project> {
 
-    // Assuming you have this record / DTO (adjust fields as needed)
-    public record Project(
-        Long id,
-        String key,
-        String name,
-        String description,
-        Long creationTime,
-        Long modificationTime
-    ) {}
-
     private static final int PAGE_SIZE = 30;   // good balance for ComboBox
-    private final RestTemplate restTemplate;   // or use WebClient / Feign / your http client
+    // private final RestTemplate restTemplate;   // or use WebClient / Feign / your http client
+    private ProjectDao projectDao;
 
-    public ProjectComboBox(String label, RestTemplate restTemplate) {
+    public ProjectComboBox(String label, ProjectDao projectDao) {
         super(label);
-        this.restTemplate = restTemplate;
+        this.projectDao = projectDao;
 
         setWidth("400px");
         setPageSize(PAGE_SIZE);
-        setItemLabelGenerator(project -> project.name + " (" + project.id() + ")");           // main display text
+        setItemLabelGenerator(project -> project.name() + " (" + project.id() + ")");           // main display text
         // setItemLabelGenerator(Project::key, "key");     // optional: secondary label (shown smaller)
         // setItemLabelGenerator(p -> p.key() + " – " + p.name());  // alternative: combined
 
@@ -52,7 +41,13 @@ public class ProjectComboBox extends ComboBox<Project> {
 
         setRenderer(createProjectRenderer());
         // The most important part: lazy backend binding
-        setItems(createProjectDataProvider());
+        DataProvider<Project, String> dataProvider = createProjectDataProvider();
+        setItems(dataProvider);
+    }
+
+
+    public static long getProjectId(Project project) {
+        return project.id();
     }
 
     private DataProvider<Project, String> createProjectDataProvider() {
@@ -62,52 +57,16 @@ public class ProjectComboBox extends ComboBox<Project> {
                 String filter = query.getFilter().orElse("");
                 int offset = query.getOffset();
                 int limit  = query.getLimit();
-
-                // Build your real URL (adjust query params to match your API)
-                String url = "https://mobydex.locoslab.com/controller-service/projects"
-                    + "?pageOffset=" + offset
-                    + "&pageSize=" + limit;
-                    // + (filter.isBlank() ? "" : "&search=" + StringUtils.urlEncode(filter));   // ← adapt filter param!
-
-                try {
-                    ProjectPage page = restTemplate.getForObject(url, ProjectPage.class);
-                    if (page == null || page.elements() == null) {
-                        return Stream.empty();
-                    }
-                    return page.elements().stream();
-                } catch (Exception e) {
-                    // log error – in real app use Notification + logger
-                    return Stream.empty();
-                }
+                return projectDao.fetchItems(filter, offset, limit);
             },
 
             // count total (needed for scrollbar / "showing x of y")
             query -> {
                 String filter = query.getFilter().orElse("");
-                String url = "https://mobydex.locoslab.com/controller-service/projects"
-                    + "?pageSize=1"  // many APIs return total even with size=0 - this one doesn't!
-                    ;
-                    // + (filter.isBlank() ? "" : "&search=" + StringUtils.urlEncode(filter));
-
-                try {
-                    ProjectPage page = restTemplate.getForObject(url, ProjectPage.class);
-                    return page != null ? page.total() : 0;
-                } catch (Exception e) {
-                    return 0;
-                }
+                return projectDao.countItems(filter);
             }
         );
     }
-
-    // Helper record matching your JSON structure
-    private record ProjectPage(
-        int size,
-        int offset,
-        int total,
-        List<Project> elements
-    ) {}
-
-
 
     private Card createProjectCard(Project project) {
         Card card = new Card();

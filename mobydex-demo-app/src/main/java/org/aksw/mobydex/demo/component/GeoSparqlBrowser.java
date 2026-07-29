@@ -1,4 +1,4 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.component;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;

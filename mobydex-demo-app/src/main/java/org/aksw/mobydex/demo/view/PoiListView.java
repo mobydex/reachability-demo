@@ -1,4 +1,4 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.view;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -18,6 +18,8 @@ import org.aksw.jena_sparql_api.vaadin.util.GridWrapperBase;
 import org.aksw.jena_sparql_api.vaadin.util.VaadinSparqlUtils;
 import org.aksw.jenax.arq.util.syntax.QueryUtils;
 import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
+import org.aksw.mobydex.demo.MainLayout;
+import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryExecution;

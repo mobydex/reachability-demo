@@ -35,8 +35,8 @@
 		<!--		<spring.version>6.1.1</spring.version>-->
 		<jakarta.xml.version>4.0.0</jakarta.xml.version>
 
-		<jackson.version>2.16.0</jackson.version>
-		<jenax.version>6.1.0-1-SNAPSHOT</jenax.version>
+		<jackson.version>2.21.0</jackson.version>
+		<jenax.version>6.1.0-2-SNAPSHOT</jenax.version>
 		<aksw-commons.version>0.9.11-SNAPSHOT</aksw-commons.version>
 		<!-- <facete3.version>1.2.0-SNAPSHOT</facete3.version> -->
 		<slf4j.version>2.0.17</slf4j.version>
@@ -123,6 +123,14 @@
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
+				<groupId>com.fasterxml.jackson</groupId>
+				<artifactId>jackson-bom</artifactId>
+				<version>${jackson.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<dependency>
 				<groupId>com.vaadin</groupId>
 				<artifactId>vaadin-bom</artifactId>
 				<version>${vaadin.version}</version>
@@ -139,20 +147,20 @@
 			</dependency>
 
 			<dependency>
+				<groupId>org.aksw.jenax</groupId>
+				<artifactId>jenax-bom</artifactId>
+				<version>${jenax.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<dependency>
 				<groupId>org.aksw.scaseco.vaadin</groupId>
 				<artifactId>vaadin-jena-bom</artifactId>
 				<version>${vaadin-jena.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
-
-			<!--			<dependency>-->
-			<!--				<groupId>org.aksw.jenax</groupId>-->
-			<!--				<artifactId>jenax-bom</artifactId>-->
-			<!--				<version>${jenax.version}</version>-->
-			<!--				<type>pom</type>-->
-			<!--				<scope>import</scope>-->
-			<!--			</dependency>-->
 
 			<dependency>
 				<groupId>org.aksw.commons</groupId>

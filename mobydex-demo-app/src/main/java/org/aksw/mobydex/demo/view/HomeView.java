@@ -1,9 +1,11 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.view;
 
 import com.vaadin.flow.component.markdown.Markdown;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+
+import org.aksw.mobydex.demo.MainLayout;
 
 @Route(value = "home", layout = MainLayout.class)
 @PageTitle("Demo")

@@ -1,12 +1,10 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.component;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
-import java.util.List;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -14,42 +12,23 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.data.provider.DataProvider;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 
-import org.aksw.mobydex.demo.ComputationComboBox.Computation;
-import org.springframework.web.client.RestTemplate;
+import org.aksw.mobydex.demo.backend.ComputationDao;
+import org.aksw.mobydex.demo.backend.ComputationDao.Computation;
 
 public class ComputationComboBox extends ComboBox<Computation> {
 
-    // Helper record matching your JSON structure
-    private record ComputationPage(
-        int size,
-        int offset,
-        int total,
-        List<Computation> elements
-    ) {}
-
-    // Assuming you have this record / DTO (adjust fields as needed)
-    public record Computation(
-        Long id,
-        Long projectId,
-        String type,
-        String state,
-//        String key,
-//        String name,
-//        String description,
-        Long creationTime,
-        Long modificationTime
-    ) {}
-
     private static final int PAGE_SIZE = 30;   // good balance for ComboBox
-    private final RestTemplate restTemplate;   // or use WebClient / Feign / your http client
+    // private final RestTemplate restTemplate;   // or use WebClient / Feign / your http client
 
-    public ComputationComboBox(String label, RestTemplate restTemplate) {
+    private ComputationDao computationDao;
+
+    public ComputationComboBox(String label, ComputationDao projectDao) {
         super(label);
-        this.restTemplate = restTemplate;
+        this.computationDao = projectDao;
 
         setWidth("400px");
         setPageSize(PAGE_SIZE);
-        setItemLabelGenerator(computation -> computation.type + " (" + computation.id() + ")");           // main display text
+        setItemLabelGenerator(computation -> computation.type() + " (" + computation.id() + ")");           // main display text
         // setItemLabelGenerator(Project::key, "key");     // optional: secondary label (shown smaller)
         // setItemLabelGenerator(p -> p.key() + " – " + p.name());  // alternative: combined
 
@@ -72,55 +51,19 @@ public class ComputationComboBox extends ComboBox<Computation> {
         return DataProvider.fromFilteringCallbacks(
             // fetch items
             query -> {
-                if (projectId == null) {
-                    return Stream.of();
-                }
-
                 String filter = query.getFilter().orElse("");
                 int offset = query.getOffset();
                 int limit  = query.getLimit();
-
-                // Build your real URL (adjust query params to match your API)
-                String url = "https://mobydex.locoslab.com/controller-service/projects/" + projectId + "/computations"
-                   + "?pageOffset=" + offset
-                    + "&pageSize=" + limit;
-                    // + (filter.isBlank() ? "" : "&search=" + StringUtils.urlEncode(filter));   // ← adapt filter param!
-
-                try {
-                    ComputationPage page = restTemplate.getForObject(url, ComputationPage.class);
-                    if (page == null || page.elements() == null) {
-                        return Stream.empty();
-                    }
-                    return page.elements().stream();
-                } catch (Exception e) {
-                    // log error – in real app use Notification + logger
-                    return Stream.empty();
-                }
+                return computationDao.fetchItems(projectId ,filter, offset, limit);
             },
 
             // count total (needed for scrollbar / "showing x of y")
             query -> {
-                if (projectId == null) {
-                    return 0;
-                }
-
                 String filter = query.getFilter().orElse("");
-                String url = "https://mobydex.locoslab.com/controller-service/projects/" + projectId + "/computations"
-                    + "?pageSize=1"  // many APIs return total even with size=0 - this one doesn't!
-                    ;
-                    // + (filter.isBlank() ? "" : "&search=" + StringUtils.urlEncode(filter));
-
-                try {
-                    ComputationPage page = restTemplate.getForObject(url, ComputationPage.class);
-                    return page != null ? page.total() : 0;
-                } catch (Exception e) {
-                    return 0;
-                }
+                return computationDao.countItems(projectId, filter);
             }
         );
     }
-
-
 
     private Card createProjectCard(Computation computation) {
         Card card = new Card();

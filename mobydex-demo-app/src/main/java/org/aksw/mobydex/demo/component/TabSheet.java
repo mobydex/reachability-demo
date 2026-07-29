@@ -1,4 +1,4 @@
-package org.aksw.mobydex.demo;
+package org.aksw.mobydex.demo.component;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,6 +18,9 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
+
+import org.aksw.mobydex.demo.ManagedComponent;
+import org.aksw.mobydex.demo.ManagedComponentSimple;
 
 /** Note: Such a class is part of V23.3 */
 public class TabSheet

@@ -11,7 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 @PWA(name = "MobyDex Demonstrator", shortName = "MobyDex Demo",
-    description = "This is a demonstrator of components for semantic data.")
+    description = "Reachability of POI Types.")
 @StyleSheet(Aura.STYLESHEET) // Specifically loads Lumo base styles
 // @StyleSheet("context://themes/my-theme/styles.css") // Loads your custom styles
 @Push

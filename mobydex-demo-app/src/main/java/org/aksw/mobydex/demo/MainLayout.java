@@ -28,6 +28,14 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteParameters;
 import com.vaadin.flow.theme.lumo.Lumo;
 
+import org.aksw.mobydex.demo.view.GeoSparqlView;
+import org.aksw.mobydex.demo.view.HomeView;
+import org.aksw.mobydex.demo.view.PoiListView;
+import org.aksw.mobydex.demo.view.ProjectSelectorView;
+import org.aksw.mobydex.demo.view.ReachabilityView;
+import org.aksw.vaadin.common.provider.util.TaskControlRegistryImpl;
+import org.aksw.vaadin.common.provider.util.TaskManager;
+
 @Route("")
 public class MainLayout
     extends AppLayout
@@ -46,6 +54,9 @@ public class MainLayout
     // @Autowired
     // protected LabelServiceSwitchable<Node, String> labelService;
 
+    protected TaskControlRegistryImpl taskControlRegistry = new TaskControlRegistryImpl();
+
+
     public MainLayout () {
         drawerToggle = new DrawerToggle();
         H1 title = new H1("MobyDex Reachability Demo");
@@ -56,6 +67,9 @@ public class MainLayout
 
         HorizontalLayout navbarLayout = new HorizontalLayout();
         menuBar = new MenuBar();
+
+        TaskManager.setupActionGrid(menuBar, taskControlRegistry);
+
 
         navbarLayout.setWidthFull();
         navbarLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.END);
