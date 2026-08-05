@@ -5,8 +5,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.aksw.jenax.arq.util.binding.BindingUtils;
 import org.aksw.jenax.sparql.fragment.api.Fragment1;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
+import org.aksw.jenax.sparql.fragment.impl.FragmentUtils;
 import org.aksw.mobydex.demo.FileUtils;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
@@ -20,6 +22,8 @@ import org.apache.jena.riot.RDFFormat;
 import org.apache.jena.sparql.algebra.Table;
 import org.apache.jena.sparql.core.BasicPattern;
 import org.apache.jena.sparql.core.Var;
+import org.apache.jena.sparql.engine.binding.Binding;
+import org.apache.jena.sparql.engine.ref.Evaluator;
 import org.apache.jena.sparql.exec.QueryExec;
 import org.apache.jena.sparql.graph.GraphFactory;
 import org.apache.jena.sparql.syntax.Element;
@@ -32,6 +36,9 @@ import org.apache.jena.sparql.syntax.syntaxtransform.ElementTransformer;
 import org.apache.jena.sparql.syntax.syntaxtransform.QueryTransformOps;
 
 public class OsmRdfApi {
+
+    public static final String DURATION_COL = "duration";
+
 
     /**
      * For each poi type, return the first n nearest cells that contain them.
@@ -437,5 +444,34 @@ public class OsmRdfApi {
                         """;
         String queryStr = "SELECT * {" + valuesBlock + "}";
         return QueryExec.graph(GraphFactory.emptyGraph()).query(queryStr).table();
+    }
+
+    // public Table exec(Graph graph ,)
+
+    // Returns the ratio of rows within the duration limit
+    // Need tags to see which ones were missing
+    public static float getReachableWithinThresholdRatio(Table poiTypeToCells, Table selectedTags, float durationThreshold) {
+        // The column for the cell is "originCell";
+        Evaluator evaluator = FragmentUtils.createEvaluator();
+        Table fullTable = evaluator.leftJoin(selectedTags, poiTypeToCells, null);
+        int totalItems = selectedTags.size();
+        int inRangeItems = 0;
+        int absentItems = 0;
+        for (Binding b : (Iterable<Binding>)() -> fullTable.rows()) {
+            Number duration = BindingUtils.getNumberNullable(b, DURATION_COL);
+            if (duration == null) {
+                ++absentItems;
+            } else {
+                float d = duration.floatValue();
+                if(d <= durationThreshold) {
+                    ++inRangeItems;
+                }
+            }
+//            b.get("cp");
+//            b.get("co");
+//            b.get(COL);
+
+        }
+        return inRangeItems / (float)totalItems;
     }
 }

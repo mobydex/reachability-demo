@@ -42,11 +42,14 @@ import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 public class MobyDexRdfApi {
     private FileCache fileCache;
 
-
     public MobyDexRdfApi() {
         super();
         Path cachePath = Path.of(System.getProperty("user.home")).resolve(".cache/mobydex");
         this.fileCache = new FileCache(cachePath);
+    }
+
+    public FileCache getFileCache() {
+        return fileCache;
     }
 
     public static MobyDexRdfApi get() {
@@ -212,7 +215,7 @@ public class MobyDexRdfApi {
             if (!r.isURIResource()) {
                 throw new RuntimeException("Expected a URI resource (graph names in quad serializations must be URIs). Got: " + r);
             }
-            DatasetGraph dsg = FileCache.resourceToDataset(r);
+            DatasetGraph dsg = FileCaches.resourceToDataset(r);
             try (OutputStream out = new BZip2CompressorOutputStream(Files.newOutputStream(rdfPathTmp))) {
                 RDFDataMgr.write(out, dsg, RDFFormat.TRIG_PRETTY);
                 out.flush();
@@ -222,16 +225,21 @@ public class MobyDexRdfApi {
 
         // Jena handles bz2
         DatasetGraph dd = RDFDataMgr.loadDatasetGraph(rdfPath.toString());
-        Resource resource = FileCache.datasetToResource(dd);
+        Resource resource = FileCaches.datasetToResource(dd);
         Computation result = resource.as(Computation.class);
         return result;
     }
 
-    public Resource loadComputation(long projectId, long computationId, long originCellId) {
-        List<String> computationKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
+    public static List<String> createCellKey(long projectId, long computationId, long originCellId) {
+        List<String> cellKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
                 .add("computation" + computationId)
                 .add("cell" + originCellId + ".ttl").buildList();
-        Resource result = (Resource)fileCache.getCache().get(computationKey, k -> {
+        return cellKey;
+    }
+
+    public Resource loadComputation(long projectId, long computationId, long originCellId) {
+        List<String> cellKey = createCellKey(projectId, computationId, originCellId);
+        Resource result = (Resource)fileCache.getCache().get(cellKey, k -> {
             Resource r;
             try {
                 r = loadComputationNew(projectId, computationId, originCellId);

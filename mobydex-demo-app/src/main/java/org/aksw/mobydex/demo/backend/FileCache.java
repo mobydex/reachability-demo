@@ -12,19 +12,12 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 
 import org.aksw.commons.io.util.PathUtils;
 import org.apache.jena.atlas.io.IOX;
-import org.apache.jena.atlas.iterator.Iter;
-import org.apache.jena.graph.Graph;
-import org.apache.jena.graph.Node;
 import org.apache.jena.rdf.model.Model;
-import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RDFFormat;
 import org.apache.jena.sparql.core.DatasetGraph;
-import org.apache.jena.sparql.core.DatasetGraphMapLink;
-import org.apache.jena.sparql.graph.GraphFactory;
-import org.apache.jena.sparql.graph.GraphReadOnly;
 
 public class FileCache {
     private Cache<List<String>, Object> cache;
@@ -91,12 +84,13 @@ public class FileCache {
                     throw new RuntimeException(e);
                 }
             }
-            return readOnly(r);
+            return FileCaches.readOnly(r);
         });
         return result;
     }
 
-    public Resource loadResource(List<String> key, Callable<Resource> creator) {
+
+    public Resource loadResourceOld(List<String> key, Callable<Resource> creator) {
         Resource result = (Resource)cache.get(key, k -> {
             Resource tmp;
             Path path = PathUtils.resolve(cacheBasePath, key);
@@ -109,44 +103,18 @@ public class FileCache {
                     }
                     tmpFile = Files.createTempFile("resource-", ".trig");
                     tmp = creator.call();
-                    DatasetGraph dsg = resourceToDataset(tmp);
+                    DatasetGraph dsg = FileCaches.resourceToDataset(tmp);
                     IOX.safeWriteOrCopy(path, tmpFile, out -> RDFDataMgr.write(out, dsg, RDFFormat.TRIG_BLOCKS));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             } else {
                 DatasetGraph dsg = RDFDataMgr.loadDatasetGraph(path.toString(), Lang.TRIG);
-                tmp = datasetToResource(dsg);
+                tmp = FileCaches.datasetToResource(dsg);
             }
-            Resource readOnly = readOnly(tmp.getModel()).asRDFNode(tmp.asNode()).asResource();
+            Resource readOnly = FileCaches.readOnly(tmp.getModel()).asRDFNode(tmp.asNode()).asResource();
             return readOnly;
         });
-        return result;
-    }
-
-    public static DatasetGraph resourceToDataset(Resource r) {
-        DatasetGraphMapLink dsg = new DatasetGraphMapLink(GraphFactory.createDefaultGraph());
-        dsg.addGraph(r.asNode(), r.getModel().getGraph());
-        return dsg;
-    }
-
-    public static Resource datasetToResource(DatasetGraph dsg) {
-        List<Node> graphNodes = Iter.toList(dsg.listGraphNodes());
-        if (graphNodes.size() != 1) {
-            throw new RuntimeException("Exactly 1 graph expected");
-        }
-        Node graphNode = graphNodes.getFirst();
-        Graph g = dsg.getGraph(graphNode);
-        Model m = ModelFactory.createModelForGraph(g);
-        Resource r = m.asRDFNode(graphNode).asResource();
-        return r;
-    }
-
-    public static Model readOnly(Model model) {
-        Graph graph = model.getGraph();
-        Model result = graph instanceof GraphReadOnly
-            ? model
-            : ModelFactory.createModelForGraph(new GraphReadOnly(graph));
         return result;
     }
 }

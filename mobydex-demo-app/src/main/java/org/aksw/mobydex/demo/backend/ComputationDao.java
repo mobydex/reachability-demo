@@ -17,7 +17,7 @@ public class ComputationDao {
     // Assuming you have this record / DTO (adjust fields as needed)
     public record Computation(
         Long id,
-        Long projectId,
+        Long project,
         String type,
         String state,
 //        String key,
@@ -38,7 +38,7 @@ public class ComputationDao {
 
     public Long getProjectId(long computationId) {
         org.aksw.mobydex.demo.backend.ComputationDao.Computation computationRec = fetchItem(computationId);
-        long projectId = computationRec.id();
+        long projectId = computationRec.project();
         return projectId;
     }
 

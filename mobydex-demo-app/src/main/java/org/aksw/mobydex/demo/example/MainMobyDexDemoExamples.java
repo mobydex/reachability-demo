@@ -5,8 +5,11 @@ import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.mobydex.demo.ConfigMobyDexDemo;
 import org.aksw.mobydex.demo.MainPlaygroundMobyDex;
 import org.aksw.mobydex.demo.backend.ComputationDao;
+import org.aksw.mobydex.demo.backend.FileCache;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
+import org.aksw.mobydex.demo.backend.ProjectDao;
+import org.aksw.mobydex.demo.backend.loader.GridComputationLoadTask;
 import org.aksw.mobydex.demo.domain.GridCell;
 import org.aksw.mobydex.demo.domain.JenaPluginMobyDexModel;
 import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
@@ -29,7 +32,8 @@ public class MainMobyDexDemoExamples {
 
         // testComputationLoad();
         Project project = testProjectLoad();
-        testCompute(project);
+        // testCompute(project);
+        testAsyncLoad(project);
     }
 
     public static Project testProjectLoad() {
@@ -57,19 +61,39 @@ public class MainMobyDexDemoExamples {
     }
 
 
+    public static void testAsyncLoad(Project project) {
+        MobyDexRdfApi mobyDexApi = MobyDexRdfApi.get();
+        FileCache fileCache = mobyDexApi.getFileCache();
+
+        //MobyDexRdfApi mobyDexApi, Model poiTypeHistogramModel, Fragment2 tagsFragment
+        Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+        Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
+        GridComputationLoadTask task = new GridComputationLoadTask(fileCache, 1, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
+
+        task.startBackgroundLoading();
+    }
+
     public static void testCompute(Project project) {
         MobyDexRdfApi mobyDexApi = MobyDexRdfApi.get();
 
         // int projectId = 2;
         // int projectId = project.getProjectId();
-        int computationId = 70;
+        long computationId = 70;
+        ProjectDao projectDao = new ProjectDao(ConfigMobyDexDemo.newRestTemplate(), ConfigMobyDexDemo.baseUrl);
+        // long projectId = projectDao.fetchItem(computationId).id();
+
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
         Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
 
-        ComputationDao dao = new ComputationDao(ConfigMobyDexDemo.newRestTemplate(), ConfigMobyDexDemo.baseUrl);
-        System.out.println("Got projectId: " + dao.getProjectId(70));
+        ComputationDao computationDao = new ComputationDao(ConfigMobyDexDemo.newRestTemplate(), ConfigMobyDexDemo.baseUrl);
+        long projectId = computationDao.getProjectId(computationId);
+        System.out.println("Got projectId: " + projectId);
 
         // Resource originCell = mobyDexApi.loadComputation(2, 70, 271);
+
+        // PriorityExecutor priorityExecutor = new PriorityExecutor(0);
+        // CompletionService<Long> service = new ExecutorCompletionService<>(priorityExecutor);
+
 
         int i = 0;
 
@@ -79,14 +103,20 @@ public class MainMobyDexDemoExamples {
             }
             ++i;
 
-            int projectId = projectGridCell.getProject().getProjectId();
+            //int projectId = projectGridCell.getProject().getProjectId();
             /// projectGridCell.get
             Resource originCell = mobyDexApi.loadComputation(projectId, 70, projectGridCell.getCellId());
-
 
             System.out.println("Table for " + projectGridCell.toString());
             Table table = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MainPlaygroundMobyDex.durationProperty);
             RowSetOps.out(System.out, table.toRowSet());
+
+            Table tags = tagsFragment.rename("cp", "co").toTable();
+
+            // Table tags = evaluator.project(tagsFragment.extractTable(), List.of(Var.alloc("key"), Var.alloc("value")));
+
+            float ratio = OsmRdfApi.getReachableWithinThresholdRatio(table, tags, 1800);
+            System.out.println("Ratio for cell: " + originCell + " " + ratio);
         }
     }
 }

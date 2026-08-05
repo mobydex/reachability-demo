@@ -296,8 +296,6 @@ public class ReachabilityView extends VerticalLayout {
         });
     }
 
-    // public Table exec(Graph graph ,)
-
     /**
      * Table structure:
      *
@@ -312,9 +310,8 @@ public class ReachabilityView extends VerticalLayout {
 
         List<Binding> list = Iter.toList(poiTypeToCells.rows());
         // Sort the bindings by the duration
-        String COL = "duration";
         Comparator<Binding> durationComparator = Comparator.nullsLast((x, y) -> Ints.saturatedCast(
-                BindingUtils.getNumber(y, COL).longValue() - BindingUtils.getNumber(x, COL).longValue()));
+                BindingUtils.getNumber(y, OsmRdfApi.DURATION_COL).longValue() - BindingUtils.getNumber(x, OsmRdfApi.DURATION_COL).longValue()));
 
         Collections.sort(list, durationComparator);
 
@@ -325,7 +322,7 @@ public class ReachabilityView extends VerticalLayout {
 
 
         NavigableMap<Long, List<Binding>> durationToPoiTypes = list.stream().collect(
-                Collectors.groupingBy(b -> BindingUtils.tryGetNumber(b, COL).map(Number::longValue).orElse(Long.MAX_VALUE),
+                Collectors.groupingBy(b -> BindingUtils.tryGetNumber(b, OsmRdfApi.DURATION_COL).map(Number::longValue).orElse(Long.MAX_VALUE),
                         TreeMap::new,
                         Collectors.mapping(projectPoiType, Collectors.toList())));
 
