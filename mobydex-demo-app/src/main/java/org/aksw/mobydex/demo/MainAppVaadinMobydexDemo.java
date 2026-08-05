@@ -20,6 +20,8 @@ public class MainAppVaadinMobydexDemo
 {
     private static final long serialVersionUID = 1L;
 
+    // static { JenaSystem.init(); }
+
     public static void main(String[] args) {
         SpringApplication.run(MainAppVaadinMobydexDemo.class, args);
 //        ConfigurableApplicationContext cxt = new SpringApplicationBuilder()

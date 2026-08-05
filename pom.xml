@@ -53,6 +53,7 @@
 		<gpg.keyname>AKSW</gpg.keyname>
 	</properties>
 	<modules>
+		<module>mobydex-domain</module>
 		<module>mobydex-demo-app</module>
 		<module>mobydex-demo-pkg-parent</module>
 	</modules>
@@ -184,6 +185,12 @@
 				<version>${log4j.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
+			</dependency>
+
+			<dependency>
+				<groupId>org.aksw.mobydex</groupId>
+				<artifactId>mobydex-domain</artifactId>
+				<version>${project.version}</version>
 			</dependency>
 
 			<dependency>

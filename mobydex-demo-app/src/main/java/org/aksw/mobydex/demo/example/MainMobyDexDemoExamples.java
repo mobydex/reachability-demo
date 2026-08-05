@@ -11,7 +11,6 @@ import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.aksw.mobydex.demo.backend.ProjectDao;
 import org.aksw.mobydex.demo.backend.loader.GridComputationLoadTask;
 import org.aksw.mobydex.demo.domain.GridCell;
-import org.aksw.mobydex.demo.domain.JenaPluginMobyDexModel;
 import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
 import org.aksw.mobydex.demo.domain.Project;
 import org.apache.jena.rdf.model.Model;
@@ -20,13 +19,12 @@ import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RDFFormat;
 import org.apache.jena.sparql.algebra.Table;
 import org.apache.jena.sparql.exec.RowSetOps;
-import org.apache.jena.sys.JenaSystem;
 
 public class MainMobyDexDemoExamples {
 
     public static void main(String[] args) {
-        JenaSystem.init();
-        JenaPluginMobyDexModel.init();
+        // JenaSystem.init();
+        // JenaPluginMobyDexModel.init();
         // testProjectLoad();
         // testComputationLoad();
 

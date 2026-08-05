@@ -7,7 +7,6 @@ import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.jenax.sparql.fragment.impl.FragmentUtils;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
-import org.aksw.mobydex.demo.domain.JenaPluginMobyDexModel;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.query.Query;
@@ -20,17 +19,12 @@ import org.apache.jena.sparql.exec.QueryExec;
 import org.apache.jena.sparql.exec.RowSetOps;
 import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 import org.apache.jena.sparql.graph.GraphFactory;
-import org.apache.jena.sys.JenaSystem;
 
 public class MainPlaygroundMobyDex {
 
     public static final Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
 
     public static void main(String[] args) throws IOException {
-        JenaSystem.init();
-        JenaPluginMobyDexModel.init();
-
-
         MobyDexRdfApi mobyDexApi = new MobyDexRdfApi();
 
         long projectId = 2;
