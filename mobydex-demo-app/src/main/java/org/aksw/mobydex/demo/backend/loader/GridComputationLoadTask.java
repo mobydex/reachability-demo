@@ -2,6 +2,7 @@ package org.aksw.mobydex.demo.backend.loader;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import com.github.benmanes.caffeine.cache.AsyncCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -92,9 +93,9 @@ public class GridComputationLoadTask
 
     protected Table fetchCell(long cellId) {
         long projectId = project.getProjectId();
-        Resource originCell = mobyDexApi.loadComputation(projectId, computationId, cellId);
         List<String> poiTableKey = createKeyPoiTable(projectId, computationId, cellId);
         return FileCaches.loadTable(fileCache, poiTableKey, () -> {
+            Resource originCell = mobyDexApi.loadComputation(projectId, computationId, cellId);
             Table table = loadTableX(originCell);
             return table;
         });
@@ -148,7 +149,7 @@ public class GridComputationLoadTask
     public void run() {
         int i = 0;
         for (GridCell projectGridCell : project.getCells()) {
-            if (i > 5) {
+            if (i > 50) {
                 break;
             }
             ++i;
@@ -164,6 +165,13 @@ public class GridComputationLoadTask
             long cellId = projectGridCell.getCellId();
             priorityExecutor.submit(cellNode, PRIO_BACKGROUND, () -> loadCell(cellId, cellNode));
             // PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellId, PRIO_BACKGROUND, () -> loadCell(cellId));
+        }
+        priorityExecutor.getExecutor().shutdown();
+        try {
+            priorityExecutor.getExecutor().awaitTermination(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         }
 
 //            //int projectId = projectGridCell.getProject().getProjectId();

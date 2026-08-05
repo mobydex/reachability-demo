@@ -61,7 +61,7 @@ public class FileCaches {
         Path cacheBasePath = fileCache.getCacheBasePath();
 
         T result = (T)cache.get(key, k -> {
-            T tmp;
+            T resultObject;
             Path path = PathUtils.resolve(cacheBasePath, key);
             System.err.println("Processing: " + path);
             if (!Files.exists(path)) {
@@ -72,12 +72,12 @@ public class FileCaches {
                         Files.createDirectories(parentPath);
                     }
                     tmpFile = Files.createTempFile(tmpFilePrefix, tmpFileSuffix);
-                    tmp = creator.call();
+                    resultObject = creator.call();
                     // DatasetGraph dsg = resourceToDataset(tmp);
-                    X dsg = converter.convert(tmp);
+                    X serializationProxy = converter.convert(resultObject);
                     IOX.safeWriteOrCopy(path, tmpFile, out -> {
                         try (OutputStream encodedOut = codec.encode(CloseShieldOutputStream.wrap(out))) {
-                            serde.write(encodedOut, dsg);
+                            serde.write(encodedOut, serializationProxy);
                             // RDFDataMgr.write(encodedOut, dsg, RDFFormat.TRIG_BLOCKS);
                             encodedOut.flush();
                         }
@@ -87,17 +87,18 @@ public class FileCaches {
                 }
             } else {
                 // DatasetGraph dsg = RDFDataMgr.loadDatasetGraph(path.toString(), Lang.TRIG);
-                X dsg;
+                X serializedProxy;
                 try (InputStream in = codec.decode(Files.newInputStream(path))) {
-                    dsg = serde.read(in);
+                    serializedProxy = serde.read(in);
+                    // Must convert here because backing resource might be streamed from the input stream.
+                    resultObject = converter.reverse().convert(serializedProxy);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
                 // tmp = datasetToResource(dsg);
-                tmp = converter.reverse().convert(dsg);
             }
             // Resource readOnly = readOnly(tmp.getModel()).asRDFNode(tmp.asNode()).asResource();
-            T r = readOnlyMaker.apply(tmp);
+            T r = readOnlyMaker.apply(resultObject);
             return r;
             // return readOnly;
         });
@@ -122,8 +123,9 @@ public class FileCaches {
 
     public static Resource datasetToResource(DatasetGraph dsg) {
         List<Node> graphNodes = Iter.toList(dsg.listGraphNodes());
-        if (graphNodes.size() != 1) {
-            throw new RuntimeException("Exactly 1 graph expected");
+        int n = graphNodes.size();
+        if (n != 1) {
+            throw new RuntimeException("Exactly 1 graph expected, but got " + n);
         }
         Node graphNode = graphNodes.getFirst();
         Graph g = dsg.getGraph(graphNode);

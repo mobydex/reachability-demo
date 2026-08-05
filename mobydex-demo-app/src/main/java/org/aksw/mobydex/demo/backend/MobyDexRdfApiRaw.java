@@ -11,7 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,6 +33,7 @@ import org.apache.jena.query.QueryExecution;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RDFFormat;
@@ -43,6 +43,7 @@ import org.apache.jena.sparql.core.DatasetGraphMapLink;
 import org.apache.jena.sparql.exec.QueryExec;
 import org.apache.jena.sparql.expr.NodeValue;
 import org.apache.jena.sparql.graph.GraphFactory;
+import org.apache.jena.vocabulary.RDF;
 
 public class MobyDexRdfApiRaw {
 
@@ -344,7 +345,13 @@ public class MobyDexRdfApiRaw {
         Model m = ModelFactory.createModelForGraph(g);
 
         RDFDataMgr.write(System.out, m, RDFFormat.TURTLE_PRETTY);
-        return m.getResource(id);
+        Resource result = m.getResource(id);
+        // The model may be empty if the cell has no connections.
+        // Add a type triple to ensure that the model is non-empty.
+        Resource CELL = ResourceFactory.createResource("http://www.example.org/Cell");
+        result.addProperty(RDF.type, CELL);
+        return result;
+        // return m.getResource(id);
     }
 
 
@@ -422,8 +429,13 @@ public class MobyDexRdfApiRaw {
             ;
 
         String id = createOriginCellId(projectId, computationId, originCellId);
-        Model result = QueryExecution.dataset(DatasetFactory.empty()).query(queryStr).construct();
-        return result.getResource(id);
+        Model model = QueryExecution.dataset(DatasetFactory.empty()).query(queryStr).construct();
+        Resource result = model.getResource(id);
+        // The model may be empty if the cell has no connections.
+        // Add a type triple to ensure that the model is non-empty.
+        Resource CELL = ResourceFactory.createResource("http://www.example.org/Cell");
+        result.addProperty(RDF.type, CELL);
+        return result;
     }
 
     public static String createOriginCellId(long projectId, long computationId, long originCellId) {
