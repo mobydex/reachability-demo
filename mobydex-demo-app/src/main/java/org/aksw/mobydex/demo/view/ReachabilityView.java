@@ -492,7 +492,6 @@ public class ReachabilityView extends VerticalLayout {
     // Reset the style of all cells - and colors the focus cell!
     public void clearCells() {
         Map<Node, List<Binding>> cellToBinding = computePoiDurations(focusCell);
-
         for (String cellId : cellIdToLayer.keySet()) {
             colorizeReachableCells(cellToBinding, cellId);
         }
@@ -738,13 +737,14 @@ public class ReachabilityView extends VerticalLayout {
         Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
         gridComputationLoadTask = new GridComputationLoadTask(fileCache, 2, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
 
-        System.out.println("STARTING LOAD");
+//        System.out.println("STARTING LOAD");
 
         gridComputationLoadTask.flow()
             .subscribeOn(Schedulers.io(), false)
             .buffer(1000, TimeUnit.MILLISECONDS)
+            .filter(buffer -> !buffer.isEmpty())
             .forEach(gridCells -> {
-                System.out.println("GOT BATCH: " + gridCells.size());
+                System.out.println(String.format("Received batch of %d cells", gridCells.size()));
                 ui.access(() -> {
                     for (GridCell cell : gridCells) {
                         paintGridCell(cell);
@@ -755,7 +755,7 @@ public class ReachabilityView extends VerticalLayout {
             // gridComputationLoadTask.loadCell(computationId, null)
             });
 
-        System.out.println("DONE LOAD");
+//        System.out.println("DONE LOAD");
 
         // gridComputationLoadTask.startBackgroundLoading();
     }

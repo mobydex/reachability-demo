@@ -1,13 +1,9 @@
 package org.aksw.mobydex.demo.backend.loader;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-
-import com.github.benmanes.caffeine.cache.AsyncCache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.mobydex.demo.backend.FileCache;
@@ -15,7 +11,6 @@ import org.aksw.mobydex.demo.backend.FileCaches;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
-import org.aksw.mobydex.demo.backend.loader.PriorityExecutor.PrioritizedFutureTask;
 import org.aksw.mobydex.demo.domain.GridCell;
 import org.aksw.mobydex.demo.domain.Project;
 import org.aksw.shellgebra.exec.ListBuilder;
@@ -24,25 +19,12 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.algebra.Table;
 
-import io.reactivex.rxjava3.core.BackpressureStrategy;
-import io.reactivex.rxjava3.core.Emitter;
 import io.reactivex.rxjava3.core.Flowable;
 
 public class GridComputationLoadTask
     // implements Runnable
 {
-    public static final int PRIO_BACKGROUND = 0;
-    public static final int PRIO_FOREGROUND = 1;
-
-    // Perhaps include copmutation in key? so cell + computation -> value
-    // private List<?> items;
-    // private Caffeine<Node, Table> cellCache;
-    private AsyncCache<Node, Table> cache;
-
     private FileCache fileCache;
-
-    private PriorityExecutor<Node> priorityExecutor;
-
     //private Project project;
     // private long projectId;
     private long computationId;
@@ -53,17 +35,32 @@ public class GridComputationLoadTask
     private Project project;
     private MobyDexRdfApi mobyDexApi;
 
+    private BackgroundLoadingMap<Node, Table> map = null;
+
+    private Map<Node, Integer> cellNodeToId;
+    private Map<Node, GridCell> cellNodeToRes;
+
     public GridComputationLoadTask(FileCache fileCache ,int nThreads, Project project, long computationId, MobyDexRdfApi mobyDexApi, Model poiTypeHistogramModel, Fragment2 tagsFragment) {
-        this.priorityExecutor = new PriorityExecutor<>(nThreads);
-
         this.fileCache = fileCache;
-        cache = Caffeine.newBuilder().executor(priorityExecutor.getExecutor()).buildAsync();
-
         this.project = project;
         this.computationId = computationId;
         this.mobyDexApi = mobyDexApi;
         this.poiTypeHistogramModel = poiTypeHistogramModel;
         this.tagsFragment = tagsFragment;
+
+        List<GridCell> gridCells = new ArrayList<>(project.getCells());
+        // List<Node> gridCells = new ArrayList<>(project.getCells());
+        this.cellNodeToId = gridCells.stream()
+                .collect(Collectors.toMap(GridCell::asNode, GridCell::getCellId));
+
+        this.cellNodeToRes = gridCells.stream()
+                .collect(Collectors.toMap(GridCell::asNode, x -> x));
+
+        this.map = new BackgroundLoadingMap<>(nThreads, cellNodeToId.keySet().iterator(), cellNode -> {
+            // Node cellNode = gridCell.asNode();
+            int cellId = cellNodeToId.get(cellNode);
+            return fetchCell(cellId);
+        });
     }
 
     public long getTotalTasks() {
@@ -71,32 +68,11 @@ public class GridComputationLoadTask
     }
 
     public long getCompletedTasks() {
-        return cache.asMap().size();
+        return map.getCache().asMap().size();
     }
 
     public Table getCell(Node cellNode) {
-        CompletableFuture<Table> future = cache.getIfPresent(cellNode);
-        Table result;
-        try {
-            result = future.isDone() ? future.get() : null;
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
-        return result;
-    }
-
-    public CompletableFuture<Table> loadCell(long cellId, Node cellNode) {
-        // Try to update the priority of an already queued task
-        priorityExecutor.updatePriority(cellNode, PRIO_FOREGROUND);
-        return loadCell(cellId, cellNode, PRIO_FOREGROUND);
-    }
-
-    protected CompletableFuture<Table> loadCell(long cellId, Node cellNode, int prio) {
-        CompletableFuture<Table> result = cache.get(cellNode, (cn, executor) -> {
-            PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellNode, prio, () -> fetchCell(cellId));
-            return task.asCompletableFuture();
-        });
-        return result;
+        return map.getIfPresent(cellNode);
     }
 
     public static List<String> createKeyPoiTable(long projectId, long computationId, long originCellId) {
@@ -141,134 +117,101 @@ public class GridComputationLoadTask
         return task;
     }
 
-    private Thread backgroundLoadThread = null;
-
-    public synchronized void startBackgroundLoading() {
-        if (backgroundLoadThread != null) {
-            throw new IllegalStateException("thread already started");
-        }
-        Thread backgroundLoadThread = null; //new Thread(this::run);
-        backgroundLoadThread.start();
-//        Executor executor = priorityExecutor.getExecutor();
-//        CompletableFuture<?> backgroundLoader = CompletableFuture.runAsync(this::run, executor);
-    }
-    public synchronized void stopBackgroundLoading() {
-        backgroundLoadThread.interrupt();
-        try {
-            backgroundLoadThread.join();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        backgroundLoadThread = null;
-    }
-
-//    @Override
-//    public void run() {
-//    }
-
     public Flowable<GridCell> flow() {
-        // Flowable.create(emitter, null)
-        return Flowable.<GridCell>create(emitter -> {
-            run(emitter);
-//             Callback listener = new Callback() {
-//                 @Override
-//                 public void onEvent(Event e) {
-//                     emitter.onNext(e);
-//                     if (e.isLast()) {
-//                         emitter.onComplete();
-//                     }
-//                 }
-//
-//                 @Override
-//                 public void onFailure(Exception e) {
-//                     emitter.onError(e);
-//                 }
-//             };
-
-             // AutoCloseable c = api.someMethod(listener);
-
-             // emitter.setCancellable(c::close);
-         }, BackpressureStrategy.BUFFER);
+        return map.flow().map(node -> cellNodeToRes.get(node));
     }
-
-    public void run(Emitter<GridCell> emitter) {
-//        Flowable.generate(emitter -> {
-//            // emitter.onNext(emitter);
-//        });
-        int i = 0;
-
-        AtomicLong counter = new AtomicLong();
-        counter.incrementAndGet();
-        try {
-            for (GridCell projectGridCell : project.getCells()) {
-                if (i > 50) {
-                    break;
-                }
-                ++i;
-
-                counter.incrementAndGet();
-
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-
-                Node cellNode = projectGridCell.asNode();
-                long cellId = projectGridCell.getCellId();
-                PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellNode, PRIO_BACKGROUND,
-                    () -> {
-                        try {
-                            return loadCell(cellId, cellNode).get();
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-
-                task.asCompletableFuture().whenComplete((table, ex) -> {
-                    try {
-                        // emitter.onNext(Map.entry(projectGridCell, table));
-                        emitter.onNext(projectGridCell);
-                    } finally {
-                        System.out.println("Loading complete: " + projectGridCell);
-                        long count = counter.decrementAndGet();
-                        if (count == 0) {
-                            emitter.onComplete();
-                        }
-                    }
-                });
-
-                // PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellId, PRIO_BACKGROUND, () -> loadCell(cellId));
-            }
-        } finally {
-            long count = counter.decrementAndGet();
-            if (count == 0) {
-                emitter.onComplete();
-            }
-        }
-        priorityExecutor.getExecutor().shutdown();
-        try {
-            priorityExecutor.getExecutor().awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-
-//            //int projectId = projectGridCell.getProject().getProjectId();
-//            /// projectGridCell.get
-//            Resource originCell = mobyDexApi.loadComputation(projectId, 70, projectGridCell.getCellId());
 //
-//            System.out.println("Table for " + projectGridCell.toString());
-//            Table table = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MainPlaygroundMobyDex.durationProperty);
-//            RowSetOps.out(System.out, table.toRowSet());
+//    public void run(Emitter<GridCell> emitter) {
+//        if (taskState == null) {
+//            Consumer<GridCell> loader = projectGridCell -> {
+//                Node cellNode = projectGridCell.asNode();
+//                long cellId = projectGridCell.getCellId();
+//                PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellNode, PRIO_BACKGROUND,
+//                        () -> {
+//                            try {
+//                                return loadCell(cellId, cellNode).get();
+//                            } catch (Exception e) {
+//                                throw new RuntimeException(e);
+//                            }
+//                        });
+//                return task.asCompletableFuture();
+////                task.asCompletableFuture().whenComplete((table, ex) -> {
+////                    try {
+////                        // emitter.onNext(Map.entry(projectGridCell, table));
+////                        emitter.onNext(projectGridCell);
+////                    } finally {
+////                        System.out.println("Loading complete: " + projectGridCell);
+////                        long count = counter.decrementAndGet();
+////                        if (count == 0) {
+////                            emitter.onComplete();
+////                        }
+////                    }
+////                });
+//            };
 //
-//            Table tags = tagsFragment.rename("cp", "co").toTable();
 //
-//            // Table tags = evaluator.project(tagsFragment.extractTable(), List.of(Var.alloc("key"), Var.alloc("value")));
+//            Stream<GridCell> taskStream = project.getCells().stream();
+//            taskStream = taskStream.limit(50);
+//            // taskIterator = new ArrayList<>((Iterable<GridCell>)() -> taskIterator).subList(0, 50).iterator();
+//            taskState = new BackgroundLoadingMap<>(taskStream.iterator(), loader);
+//        }
 //
-//            float ratio = OsmRdfApi.getReachableWithinThresholdRatio(table, tags, 1800);
-//            System.out.println("Ratio for cell: " + originCell + " " + ratio);
-
-    }
+//        int i = 0;
+//
+//        Iterator<GridCell> taskIterator = project.getCells().iterator();
+//
+//        AtomicLong counter = new AtomicLong();
+//        counter.incrementAndGet();
+//        try {
+//            for (GridCell projectGridCell : project.getCells()) {
+//                if (i > 50) {
+//                    break;
+//                }
+//                ++i;
+//
+//                counter.incrementAndGet();
+//
+//                try {
+//                    Thread.sleep(1000);
+//                } catch (InterruptedException e) {
+//                    // TODO Auto-generated catch block
+//                    e.printStackTrace();
+//                }
+//
+//                Node cellNode = projectGridCell.asNode();
+//                long cellId = projectGridCell.getCellId();
+//
+//
+//                // PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellId, PRIO_BACKGROUND, () -> loadCell(cellId));
+//            }
+//        } finally {
+//            long count = counter.decrementAndGet();
+//            if (count == 0) {
+//                emitter.onComplete();
+//            }
+//        }
+//        priorityExecutor.getExecutor().shutdown();
+//        try {
+//            priorityExecutor.getExecutor().awaitTermination(10, TimeUnit.SECONDS);
+//        } catch (InterruptedException e) {
+//            // TODO Auto-generated catch block
+//            e.printStackTrace();
+//        }
+//
+////            //int projectId = projectGridCell.getProject().getProjectId();
+////            /// projectGridCell.get
+////            Resource originCell = mobyDexApi.loadComputation(projectId, 70, projectGridCell.getCellId());
+////
+////            System.out.println("Table for " + projectGridCell.toString());
+////            Table table = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MainPlaygroundMobyDex.durationProperty);
+////            RowSetOps.out(System.out, table.toRowSet());
+////
+////            Table tags = tagsFragment.rename("cp", "co").toTable();
+////
+////            // Table tags = evaluator.project(tagsFragment.extractTable(), List.of(Var.alloc("key"), Var.alloc("value")));
+////
+////            float ratio = OsmRdfApi.getReachableWithinThresholdRatio(table, tags, 1800);
+////            System.out.println("Ratio for cell: " + originCell + " " + ratio);
+//
+//    }
 }
