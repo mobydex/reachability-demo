@@ -3,10 +3,10 @@ package org.aksw.mobydex.demo.example;
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.mobydex.demo.ConfigMobyDexDemo;
-import org.aksw.mobydex.demo.MainPlaygroundMobyDex;
 import org.aksw.mobydex.demo.backend.ComputationDao;
 import org.aksw.mobydex.demo.backend.FileCache;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
+import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.aksw.mobydex.demo.backend.ProjectDao;
 import org.aksw.mobydex.demo.backend.loader.GridComputationLoadTask;
@@ -31,7 +31,12 @@ public class MainMobyDexDemoExamples {
         // testComputationLoad();
         Project project = testProjectLoad();
         // testCompute(project);
-        testAsyncLoad(project);
+        if (false) {
+            testAsyncLoad(project);
+        }
+
+        // testComputeOld();
+        testComputationLoad();
     }
 
     public static Project testProjectLoad() {
@@ -54,10 +59,10 @@ public class MainMobyDexDemoExamples {
 
     public static void testComputationLoad() {
         MobyDexRdfApi api = MobyDexRdfApi.get();
-        Resource r = api.loadComputation(2, 70, 271);
+        //Resource r = api.loadComputation(2, 70, 271);
+        Resource r = api.loadComputation(2, 70, 1028);
         RDFDataMgr.write(System.out, r.getModel(), RDFFormat.TURTLE_PRETTY);
     }
-
 
     public static void testAsyncLoad(Project project) {
         MobyDexRdfApi mobyDexApi = MobyDexRdfApi.get();
@@ -69,6 +74,31 @@ public class MainMobyDexDemoExamples {
         GridComputationLoadTask task = new GridComputationLoadTask(fileCache, 1, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
 
         task.startBackgroundLoading();
+    }
+
+    public static void testComputeOld() {
+        int projectId = 2;
+        int computationId = 70;
+        int originCellId = 1029;
+
+        MobyDexRdfApi mobyDexApi = MobyDexRdfApi.get();
+        Model projectModel = mobyDexApi.loadProjectGrid(projectId);
+        Project project = MobyDexRdfAccess.getProject(projectModel);
+
+        // Model projectGridModel = mobyDexApi.loadProjectGrid(projectId);
+        Resource originCell = mobyDexApi.loadComputation(projectId, computationId, originCellId);
+
+        Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+
+        // Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(projectId, tagsFragment);
+        // Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+        Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
+
+        // Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
+        Table poiTypeToCells = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MobyDexRdfApiRaw.durationProperty);
+
+        RowSetOps.out(System.out, poiTypeToCells.toRowSet());
+        // return poiTypeToCells;
     }
 
     public static void testCompute(Project project) {
@@ -91,8 +121,6 @@ public class MainMobyDexDemoExamples {
 
         // PriorityExecutor priorityExecutor = new PriorityExecutor(0);
         // CompletionService<Long> service = new ExecutorCompletionService<>(priorityExecutor);
-
-
         int i = 0;
 
         for (GridCell projectGridCell : project.getCells()) {
@@ -106,7 +134,7 @@ public class MainMobyDexDemoExamples {
             Resource originCell = mobyDexApi.loadComputation(projectId, 70, projectGridCell.getCellId());
 
             System.out.println("Table for " + projectGridCell.toString());
-            Table table = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MainPlaygroundMobyDex.durationProperty);
+            Table table = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MobyDexRdfApiRaw.durationProperty);
             RowSetOps.out(System.out, table.toRowSet());
 
             Table tags = tagsFragment.rename("cp", "co").toTable();

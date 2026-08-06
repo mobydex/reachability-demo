@@ -6,9 +6,8 @@ import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.jenax.sparql.fragment.impl.FragmentUtils;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
+import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
-import org.apache.jena.graph.Node;
-import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.query.Query;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
@@ -21,8 +20,6 @@ import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 import org.apache.jena.sparql.graph.GraphFactory;
 
 public class MainPlaygroundMobyDex {
-
-    public static final Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
 
     public static void main(String[] args) throws IOException {
         MobyDexRdfApi mobyDexApi = new MobyDexRdfApi();
@@ -56,7 +53,7 @@ public class MainPlaygroundMobyDex {
 //            .query(poiTypeHistogramQuery)
 //            .construct();
 
-        Table poiTypeToCells = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, durationProperty);
+        Table poiTypeToCells = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MobyDexRdfApiRaw.durationProperty);
         if (true) {
             RowSetOps.out(System.out, poiTypeToCells.toRowSet());
             // RDFDataMgr.write(System.out, originCell.getModel(), RDFFormat.TURTLE_BLOCKS);

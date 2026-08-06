@@ -8,10 +8,10 @@ import com.github.benmanes.caffeine.cache.AsyncCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
-import org.aksw.mobydex.demo.MainPlaygroundMobyDex;
 import org.aksw.mobydex.demo.backend.FileCache;
 import org.aksw.mobydex.demo.backend.FileCaches;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
+import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.aksw.mobydex.demo.backend.loader.PriorityExecutor.PrioritizedFutureTask;
 import org.aksw.mobydex.demo.domain.GridCell;
@@ -103,7 +103,7 @@ public class GridComputationLoadTask
 
     public Table loadTableX(Resource originCell) {
         // System.out.println("Table for " + projectGridCell.toString());
-        Table table = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MainPlaygroundMobyDex.durationProperty);
+        Table table = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1, MobyDexRdfApiRaw.durationProperty);
         // RowSetOps.out(System.out, table.toRowSet());
         return table;
 //      if (Thread.currentThread().isInterrupted()) {

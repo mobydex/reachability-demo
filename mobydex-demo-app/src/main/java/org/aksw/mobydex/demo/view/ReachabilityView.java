@@ -42,11 +42,16 @@ import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
 import org.aksw.mobydex.demo.CellStyles;
 import org.aksw.mobydex.demo.MainLayout;
+import org.aksw.mobydex.demo.backend.FileCaches;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.aksw.mobydex.demo.backend.OsmRdfApi.ElementTransformInjectNamedElement;
+import org.aksw.mobydex.demo.backend.ProjectDao;
+import org.aksw.mobydex.demo.backend.loader.GridComputationLoadTask;
 import org.aksw.mobydex.demo.component.TabSheet;
+import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
+import org.aksw.mobydex.demo.domain.Project;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
 import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
@@ -157,18 +162,21 @@ public class ReachabilityView extends VerticalLayout {
 
     private GridSparqlBinding poiReachabilityGrid = new GridSparqlBinding();
 
+    private ProjectDao projectDao;
+
     public static String fmtDurationS2M(Long durationSeconds) {
         return (durationSeconds == null || durationSeconds.equals(Long.MAX_VALUE))
             ? "-"
             : decimalFormat.format(durationSeconds / 60.0) + "min";
     }
 
-    public ReachabilityView() {
+    public ReachabilityView(ProjectDao projectDao) {
         try {
             mobyDexApi = new MobyDexRdfApi();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        this.projectDao = projectDao;
 
         setSizeFull();
 
@@ -442,16 +450,26 @@ public class ReachabilityView extends VerticalLayout {
         // Fragment osmPoiTable =
         // Fragment.of(OsmRdfApi.getPoiCategories()).toFragment3();
 
+
+        // TODO Need to migrate to
+        // GridComputationLoadTask
+
+        // Project project = projectDao.fetchItem(originCellId);
+        Model projectModel = mobyDexApi.loadProjectGrid(projectId);
+        Project project = MobyDexRdfAccess.getProject(projectModel);
+
         // Model projectGridModel = mobyDexApi.loadProjectGrid(projectId);
         Resource originCell = mobyDexApi.loadComputation(projectId, computationId, originCellId);
 
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
 
-        Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(projectId, tagsFragment);
+        // Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(projectId, tagsFragment);
+        // Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+        Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
 
-        Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
+        // Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
         Table poiTypeToCells = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1,
-                durationProperty);
+                MobyDexRdfApiRaw.durationProperty);
         return poiTypeToCells;
     }
 
@@ -588,12 +606,12 @@ public class ReachabilityView extends VerticalLayout {
         Model model = MobyDexRdfApiRaw.loadProjectGrid(2);
 
         Table bindings = QueryExec.graph(model.getGraph()).query("""
-                    PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+                PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 
-                    SELECT * {
-                      ?s geo:hasGeometry/geo:asWKT ?wkt
-                    }
-                """).table();
+                SELECT * {
+                  ?s geo:hasGeometry/geo:asWKT ?wkt
+                }
+            """).table();
 
         Set<Geometry> detectedGeometries = ResultSetMapRendererL.addBindingsToLayer(converter, gridLayerGroup,
                 bindings.rows(), (layer, b, v) -> {

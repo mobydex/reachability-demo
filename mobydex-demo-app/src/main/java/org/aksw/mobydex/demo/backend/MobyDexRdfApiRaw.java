@@ -47,6 +47,8 @@ import org.apache.jena.vocabulary.RDF;
 
 public class MobyDexRdfApiRaw {
 
+    public static final Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
+
     public static Model loadProjectGrid(long projectId) {
         String queryStr = """
             PREFIX geo: <http://www.opengis.net/ont/geosparql#>
