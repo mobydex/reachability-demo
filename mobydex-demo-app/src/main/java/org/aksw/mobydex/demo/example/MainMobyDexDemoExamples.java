@@ -31,12 +31,12 @@ public class MainMobyDexDemoExamples {
         // testComputationLoad();
         Project project = testProjectLoad();
         // testCompute(project);
-        if (false) {
+        if (true) {
             testAsyncLoad(project);
         }
 
         // testComputeOld();
-        testComputationLoad();
+        // testComputationLoad();
     }
 
     public static Project testProjectLoad() {
@@ -71,9 +71,12 @@ public class MainMobyDexDemoExamples {
         //MobyDexRdfApi mobyDexApi, Model poiTypeHistogramModel, Fragment2 tagsFragment
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
         Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
-        GridComputationLoadTask task = new GridComputationLoadTask(fileCache, 1, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
+        GridComputationLoadTask task = new GridComputationLoadTask(fileCache, 2, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
 
-        task.startBackgroundLoading();
+        task.flow().forEach(table -> {
+            System.out.println("GOT: " + table);
+        });
+        // task.startBackgroundLoading();
     }
 
     public static void testComputeOld() {

@@ -2,7 +2,9 @@ package org.aksw.mobydex.demo.backend.loader;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.github.benmanes.caffeine.cache.AsyncCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -22,8 +24,12 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.algebra.Table;
 
+import io.reactivex.rxjava3.core.BackpressureStrategy;
+import io.reactivex.rxjava3.core.Emitter;
+import io.reactivex.rxjava3.core.Flowable;
+
 public class GridComputationLoadTask
-    implements Runnable
+    // implements Runnable
 {
     public static final int PRIO_BACKGROUND = 0;
     public static final int PRIO_FOREGROUND = 1;
@@ -68,7 +74,18 @@ public class GridComputationLoadTask
         return cache.asMap().size();
     }
 
-    protected CompletableFuture<Table> loadCell(long cellId, Node cellNode) {
+    public Table getCell(Node cellNode) {
+        CompletableFuture<Table> future = cache.getIfPresent(cellNode);
+        Table result;
+        try {
+            result = future.isDone() ? future.get() : null;
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+        return result;
+    }
+
+    public CompletableFuture<Table> loadCell(long cellId, Node cellNode) {
         // Try to update the priority of an already queued task
         priorityExecutor.updatePriority(cellNode, PRIO_FOREGROUND);
         return loadCell(cellId, cellNode, PRIO_FOREGROUND);
@@ -130,7 +147,7 @@ public class GridComputationLoadTask
         if (backgroundLoadThread != null) {
             throw new IllegalStateException("thread already started");
         }
-        Thread backgroundLoadThread = new Thread(this::run);
+        Thread backgroundLoadThread = null; //new Thread(this::run);
         backgroundLoadThread.start();
 //        Executor executor = priorityExecutor.getExecutor();
 //        CompletableFuture<?> backgroundLoader = CompletableFuture.runAsync(this::run, executor);
@@ -145,26 +162,90 @@ public class GridComputationLoadTask
         backgroundLoadThread = null;
     }
 
-    @Override
-    public void run() {
+//    @Override
+//    public void run() {
+//    }
+
+    public Flowable<GridCell> flow() {
+        // Flowable.create(emitter, null)
+        return Flowable.<GridCell>create(emitter -> {
+            run(emitter);
+//             Callback listener = new Callback() {
+//                 @Override
+//                 public void onEvent(Event e) {
+//                     emitter.onNext(e);
+//                     if (e.isLast()) {
+//                         emitter.onComplete();
+//                     }
+//                 }
+//
+//                 @Override
+//                 public void onFailure(Exception e) {
+//                     emitter.onError(e);
+//                 }
+//             };
+
+             // AutoCloseable c = api.someMethod(listener);
+
+             // emitter.setCancellable(c::close);
+         }, BackpressureStrategy.BUFFER);
+    }
+
+    public void run(Emitter<GridCell> emitter) {
+//        Flowable.generate(emitter -> {
+//            // emitter.onNext(emitter);
+//        });
         int i = 0;
-        for (GridCell projectGridCell : project.getCells()) {
-            if (i > 50) {
-                break;
-            }
-            ++i;
 
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
+        AtomicLong counter = new AtomicLong();
+        counter.incrementAndGet();
+        try {
+            for (GridCell projectGridCell : project.getCells()) {
+                if (i > 50) {
+                    break;
+                }
+                ++i;
 
-            Node cellNode = projectGridCell.asNode();
-            long cellId = projectGridCell.getCellId();
-            priorityExecutor.submit(cellNode, PRIO_BACKGROUND, () -> loadCell(cellId, cellNode));
-            // PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellId, PRIO_BACKGROUND, () -> loadCell(cellId));
+                counter.incrementAndGet();
+
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+
+                Node cellNode = projectGridCell.asNode();
+                long cellId = projectGridCell.getCellId();
+                PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellNode, PRIO_BACKGROUND,
+                    () -> {
+                        try {
+                            return loadCell(cellId, cellNode).get();
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+
+                task.asCompletableFuture().whenComplete((table, ex) -> {
+                    try {
+                        // emitter.onNext(Map.entry(projectGridCell, table));
+                        emitter.onNext(projectGridCell);
+                    } finally {
+                        System.out.println("Loading complete: " + projectGridCell);
+                        long count = counter.decrementAndGet();
+                        if (count == 0) {
+                            emitter.onComplete();
+                        }
+                    }
+                });
+
+                // PrioritizedFutureTask<Table> task = priorityExecutor.submit(cellId, PRIO_BACKGROUND, () -> loadCell(cellId));
+            }
+        } finally {
+            long count = counter.decrementAndGet();
+            if (count == 0) {
+                emitter.onComplete();
+            }
         }
         priorityExecutor.getExecutor().shutdown();
         try {

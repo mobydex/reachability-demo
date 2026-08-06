@@ -11,13 +11,20 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.TreeMap;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.primitives.Ints;
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.ClientCallable;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -42,7 +49,7 @@ import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
 import org.aksw.mobydex.demo.CellStyles;
 import org.aksw.mobydex.demo.MainLayout;
-import org.aksw.mobydex.demo.backend.FileCaches;
+import org.aksw.mobydex.demo.backend.FileCache;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
@@ -50,6 +57,7 @@ import org.aksw.mobydex.demo.backend.OsmRdfApi.ElementTransformInjectNamedElemen
 import org.aksw.mobydex.demo.backend.ProjectDao;
 import org.aksw.mobydex.demo.backend.loader.GridComputationLoadTask;
 import org.aksw.mobydex.demo.component.TabSheet;
+import org.aksw.mobydex.demo.domain.GridCell;
 import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
 import org.aksw.mobydex.demo.domain.Project;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
@@ -72,7 +80,11 @@ import org.apache.jena.sparql.exec.http.QueryExecHTTP;
 import org.apache.jena.sparql.syntax.Element;
 import org.apache.jena.sparql.syntax.syntaxtransform.QueryTransformOps;
 import org.locationtech.jts.geom.Geometry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.EnableAsync;
 
+import io.reactivex.rxjava3.schedulers.Schedulers;
 import software.xdev.chartjs.model.charts.BarChart;
 import software.xdev.chartjs.model.data.BarData;
 import software.xdev.chartjs.model.dataset.BarDataset;
@@ -99,7 +111,11 @@ import tools.jackson.databind.node.ObjectNode;
 @Route(value = "reachability", layout = MainLayout.class)
 @PageTitle("Demo")
 // @PreserveOnRefresh
+// @Push(PushMode.AUTOMATIC)
+@EnableAsync
 public class ReachabilityView extends VerticalLayout {
+    private static final Logger logger = LoggerFactory.getLogger(ReachabilityView.class);
+
     private static final long serialVersionUID = 1L;
 
     protected LComponentManagementRegistry reg = new LDefaultComponentManagementRegistry(this);
@@ -110,12 +126,84 @@ public class ReachabilityView extends VerticalLayout {
 
     protected ChartContainer cellDetailsChart = new ChartContainer();
 
+    protected LLayerGroup overviewGridLayerGroup;
+
     protected LLayerGroup gridLayerGroup;
     private LLayerGroup markerLayerGroup;
 
     private String ID;
 
+    private volatile UI ui;
+
     protected CellSelectionMode cellSelectionMode = CellSelectionMode.FOCUS;
+
+    protected GridComputationLoadTask gridComputationLoadTask = null;
+
+    protected Timer gridUpdateTimer = new Timer();
+    protected volatile TimerTask gridUpdateTask = null;
+    protected BlockingQueue<GridCell> overviewGridQueue = new LinkedBlockingDeque<>();
+
+    protected void processOverviewGridQueue() {
+        System.out.println("PROCESSING QUEUE");
+        List<GridCell> tasks = new ArrayList<>();
+        overviewGridQueue.drainTo(tasks);
+
+        for (GridCell cell : tasks) {
+            String cellId = cell.getURI();
+            LPath<?> cellPath = cellIdToLayer.get(cellId);
+            System.out.println("Geom for " + cellId + " -> " + cellPath);
+            LPolylineOptions style = new LPolylineOptions();
+            CellStyles.purple(style);
+            cellPath.setStyle(style);
+        }
+    }
+
+    protected void paintGridCell(GridCell gridCell) {
+        String cellId = gridCell.getURI();
+        LPath<?> cellPath = cellIdToLayer.get(cellId);
+        System.out.println("Geom for " + cellId + " -> " + cellPath);
+        LPolylineOptions style = new LPolylineOptions();
+        CellStyles.purple(style);
+        cellPath.setStyle(style);
+    }
+
+    @Override
+    protected void onAttach(AttachEvent event) {
+        super.onAttach(event);
+        ui = event.getUI();
+
+
+
+    }
+
+    Object myLock = new Object();
+
+    public void enqueGridCell(GridCell cell) {
+        System.out.println("Enqueing: " + cell.getURI());
+
+        overviewGridQueue.add(cell);
+
+        if (gridUpdateTask == null) {
+            // synchronized (myLock) {
+                if (gridUpdateTask == null) {
+                    // if (task != null)
+                    gridUpdateTask = new TimerTask() {
+                        @Override
+                        public void run() {
+                            System.out.println("Refreshing UI");
+                            gridUpdateTask = null;
+                            ui.accessLater(() -> {
+                                // synchronized (myLock) {
+                                    processOverviewGridQueue();
+                                // }
+                            }, null);
+                        }
+                    };
+                    gridUpdateTimer.schedule(gridUpdateTask, 1000);
+                }
+            // }
+        }
+    }
 
     public enum CellSelectionMode {
         FOCUS("Focus"), // Focus on the selected cell, making it the origin of reachability computations.
@@ -244,8 +332,16 @@ public class ReachabilityView extends VerticalLayout {
         markerLayerGroup = new LLayerGroup(reg);
         mapContainer.getlMap().addLayer(markerLayerGroup);
 
+
+        overviewGridLayerGroup = new LLayerGroup(reg);
+        mapContainer.getlMap().addLayer(overviewGridLayerGroup);
+        // mapContainer.getlMap().rem
+
+
         gridLayerGroup = new LLayerGroup(reg);
         mapContainer.getlMap().addLayer(gridLayerGroup);
+
+
 
         // mapContainer.setWidth("400px");
         mapContainer.setWidthFull();
@@ -392,43 +488,47 @@ public class ReachabilityView extends VerticalLayout {
         reachabilityChart.showChart(barChart.toJson());
     }
 
-    // Reset the style of all cells
+    // TODO Misleading name - it colors the focus cell; it does not paint the overview grid
+    // Reset the style of all cells - and colors the focus cell!
     public void clearCells() {
         Map<Node, List<Binding>> cellToBinding = computePoiDurations(focusCell);
 
-        for (var e : cellIdToLayer.entrySet()) {
-            String cellId = e.getKey();
-            LPath<?> cellPath = e.getValue();
+        for (String cellId : cellIdToLayer.keySet()) {
+            colorizeReachableCells(cellToBinding, cellId);
+        }
+    }
 
-            LPolylineOptions style = new LPolylineOptions();
-            CellStyles.grey(style); // default color
+    private void colorizeReachableCells(Map<Node, List<Binding>> cellToBinding, String cellId) {
+        LPath<?> cellPath = cellIdToLayer.get(cellId);
 
-            Node cellNode = NodeFactory.createURI(cellId);
-            List<Binding> bindings = cellToBinding.getOrDefault(cellNode, List.of());
-            Long poiDuration = null;
-            for (Binding b : bindings) {
-                Long duration = BindingUtils.tryGetNumber(b, "duration").map(Number::longValue).orElse(null);
-                poiDuration = duration;
-                if (duration != null) {
-                    if (duration < durationThreshold) {
-                        CellStyles.green(style);
-                    } else {
-                        CellStyles.red(style);
-                    }
+        LPolylineOptions style = new LPolylineOptions();
+        CellStyles.grey(style); // default color
+
+        Node cellNode = NodeFactory.createURI(cellId);
+        List<Binding> bindings = cellToBinding.getOrDefault(cellNode, List.of());
+        Long poiDuration = null;
+        for (Binding b : bindings) {
+            Long duration = BindingUtils.tryGetNumber(b, "duration").map(Number::longValue).orElse(null);
+            poiDuration = duration;
+            if (duration != null) {
+                if (duration < durationThreshold) {
+                    CellStyles.green(style);
+                } else {
+                    CellStyles.red(style);
                 }
             }
-            if (poiDuration != null) {
-                String popupStr = "Reachable in " + fmtDurationS2M(poiDuration) + "<br />"
-                                  + bindings.stream().map(b -> toOsmLabel(b, "cp", "co")).collect(Collectors.joining("<br />"));
-                cellPath.bindPopup(popupStr);
-            }
-
-            if (Objects.equals(cellId, focusCell)) {
-                CellStyles.purple(style);
-                // CellStyles.selected(style);
-            }
-            cellPath.setStyle(style);
         }
+        if (poiDuration != null) {
+            String popupStr = "Reachable in " + fmtDurationS2M(poiDuration) + "<br />"
+                              + bindings.stream().map(b -> toOsmLabel(b, "cp", "co")).collect(Collectors.joining("<br />"));
+            cellPath.bindPopup(popupStr);
+        }
+
+        if (Objects.equals(cellId, focusCell)) {
+            CellStyles.purple(style);
+            // CellStyles.selected(style);
+        }
+        cellPath.setStyle(style);
     }
 
     public Table computePoiDurationsTable(String originCellIdStr) {
@@ -603,9 +703,11 @@ public class ReachabilityView extends VerticalLayout {
     }
 
     public void loadProjectGrid() {
-        Model model = MobyDexRdfApiRaw.loadProjectGrid(2);
+        MobyDexRdfApi mobyDexRdfApi = MobyDexRdfApi.get();
+        Project project = mobyDexRdfApi.loadProject(2);
+        Model projectModel = project.getModel();
 
-        Table bindings = QueryExec.graph(model.getGraph()).query("""
+        Table bindings = QueryExec.graph(projectModel.getGraph()).query("""
                 PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 
                 SELECT * {
@@ -630,6 +732,32 @@ public class ReachabilityView extends VerticalLayout {
 //            opts.setDuration(1.0);
 //            map.flyToBounds(bounds, opts);
         }
+
+        FileCache fileCache = mobyDexApi.getFileCache();
+        Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+        Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
+        gridComputationLoadTask = new GridComputationLoadTask(fileCache, 2, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
+
+        System.out.println("STARTING LOAD");
+
+        gridComputationLoadTask.flow()
+            .subscribeOn(Schedulers.io(), false)
+            .buffer(1000, TimeUnit.MILLISECONDS)
+            .forEach(gridCells -> {
+                System.out.println("GOT BATCH: " + gridCells.size());
+                ui.access(() -> {
+                    for (GridCell cell : gridCells) {
+                        paintGridCell(cell);
+                    }
+                });
+            // logger.info("Loaded: " + gridCell.getURI());
+            //enqueGridCell(gridCell);
+            // gridComputationLoadTask.loadCell(computationId, null)
+            });
+
+        System.out.println("DONE LOAD");
+
+        // gridComputationLoadTask.startBackgroundLoading();
     }
 
     private MapContainer createLMap() {

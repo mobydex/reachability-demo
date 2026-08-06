@@ -23,6 +23,7 @@ import org.aksw.jenax.dataaccess.sparql.creator.FileSets;
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.mobydex.demo.domain.Computation;
+import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
 import org.aksw.mobydex.demo.domain.Project;
 import org.aksw.shellgebra.exec.ListBuilder;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
@@ -63,6 +64,12 @@ public class MobyDexRdfApi {
     List<String> createKeyProjectGridFile(long projectId) {
         List<String> gridFileKey = ListBuilder.ofStrings(getProjectGridKey(projectId)).add("grid.ttl").buildList();
         return gridFileKey;
+    }
+
+    public Project loadProject(long projectId) {
+        Model projectModel = loadProjectGrid(projectId);
+        Project project = MobyDexRdfAccess.getProject(projectModel);
+        return project;
     }
 
     public Model loadProjectGrid(long projectId) {
