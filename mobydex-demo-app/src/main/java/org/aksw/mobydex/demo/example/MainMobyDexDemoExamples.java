@@ -66,7 +66,7 @@ public class MainMobyDexDemoExamples {
 
     public static void testAsyncLoad(Project project) {
         MobyDexRdfApi mobyDexApi = MobyDexRdfApi.get();
-        FileCache fileCache = mobyDexApi.getFileCache();
+        FileCache fileCache = mobyDexApi.getProjectCache();
 
         //MobyDexRdfApi mobyDexApi, Model poiTypeHistogramModel, Fragment2 tagsFragment
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();

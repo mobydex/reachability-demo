@@ -19,6 +19,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import org.aksw.jena_sparql_api.vaadin.util.GridWrapper;
 import org.aksw.jena_sparql_api.vaadin.util.GridWrapperBase;
 import org.aksw.jena_sparql_api.vaadin.util.VaadinSparqlUtils;
+import org.aksw.jenax.arq.util.query.QueryTransform;
 import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
 import org.aksw.jenax.stmt.util.QueryParseExceptionUtils;
 import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
@@ -79,6 +80,9 @@ public class GeoSparqlBrowser extends VerticalLayout {
     protected GridSparqlBinding resultSetGrid;
     protected MapContainer mapContainer;
 
+    /** Optional query transform to create an effective query. */
+    protected QueryTransform queryTransform;
+
 //    protected TileLayer lightLayer = new TileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png");
 //    protected TileLayer darkLayer = new TileLayer("http://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png");
 
@@ -88,13 +92,15 @@ public class GeoSparqlBrowser extends VerticalLayout {
     private String ID;
 
     // @Autowired
-    public GeoSparqlBrowser(QueryExecutionFactoryQuery qef) {
+    public GeoSparqlBrowser(QueryExecutionFactoryQuery qef, QueryTransform queryTransform) {
         this.qef = qef;
 
         ID = "geosparql-browser-" + System.nanoTime();
         setId(ID);
 
         this.executor = MoreExecutors.getExitingExecutorService((ThreadPoolExecutor)Executors.newCachedThreadPool());
+
+        this.queryTransform = queryTransform;
 
         setSizeFull();
 
@@ -135,7 +141,7 @@ public class GeoSparqlBrowser extends VerticalLayout {
 //            String value = ev.getValue();
 //            System.out.println("Update: " + value);
 //            WebStorage.setItem("activeQuery", value);
-//        });
+//        });swing
 //
 //        WebStorage.getItem("activeQuery", v -> {
 //            textArea.setValue(v);
@@ -172,10 +178,10 @@ public class GeoSparqlBrowser extends VerticalLayout {
             ///textArea.removeAllMarkers();
 
         yasqe.addQueryButtonListener(ev -> {
-            String queryString = ev.getValue();
+            String queryStr = ev.getValue();
             Query query;
             try {
-                query = QueryFactory.create(queryString);
+                query = QueryFactory.create(queryStr);
             } catch (Exception e) {
                 String msg = ExceptionUtils.getRootCauseMessage(e);
 
@@ -196,9 +202,11 @@ public class GeoSparqlBrowser extends VerticalLayout {
                 return;
             }
 
+            Query finalQuery = toEffectiveQuery(query);
+
             GridWrapper<Binding> wrappedGrid = GridWrapperBase.wrap(resultSetGrid);
-            VaadinSparqlUtils.setQueryForGridBinding(wrappedGrid, resultSetGrid.getHeaderRow(), qef, query);
-            VaadinSparqlUtils.configureGridFilter(wrappedGrid, resultSetGrid.getFilterRow(), query.getProjectVars(),
+            VaadinSparqlUtils.setQueryForGridBinding(wrappedGrid, resultSetGrid.getHeaderRow(), qef, finalQuery);
+            VaadinSparqlUtils.configureGridFilter(wrappedGrid, resultSetGrid.getFilterRow(), finalQuery.getProjectVars(),
                     var -> str -> VaadinSparqlUtils.createFilterExpr(var, str).orElse(null));
 
             resultSetGrid.getDataCommunicator().enablePushUpdates(executor);
@@ -209,7 +217,7 @@ public class GeoSparqlBrowser extends VerticalLayout {
             // resultSetGrid.updateDataProviderListenerRegistration();
 
             availableVars.removeAll();
-            for (Var var : query.getProjectVars()) {
+            for (Var var : finalQuery.getProjectVars()) {
                 Span span = new Span(var.getName());
                 availableVars.add(span);
 
@@ -256,6 +264,37 @@ public class GeoSparqlBrowser extends VerticalLayout {
         // add(pivotColumnVarsSortable);
 
         add(resultSetGrid);
+    }
+
+    protected Query getRawQuery(String queryString) {
+        Query query;
+        try {
+            query = QueryFactory.create(queryString);
+        } catch (Exception e) {
+            String msg = ExceptionUtils.getRootCauseMessage(e);
+
+            if (e instanceof QueryParseException) {
+                QueryParseException qpe = (QueryParseException)e;
+                int[] lineAndCol = QueryParseExceptionUtils.parseLineAndCol(qpe);
+                if (lineAndCol != null) {
+                    // TODO The Vaadin AceEditor wrapper does not seem to support annotations
+                    // Markers do not seem to be a replacement
+                    // AceMarker marker = new AceMarker(lineAndCol[0] - 1, lineAndCol[1] - 1, lineAndCol[0], 0, AceMarkerColor.red);
+                    // textArea.addMarker(marker);
+                }
+            }
+
+            Notification n = new Notification(msg, 10000);
+            n.addThemeVariants(NotificationVariant.LUMO_ERROR);
+            n.open();
+            return null;
+        }
+        return query;
+    }
+
+    protected Query toEffectiveQuery(Query query) {
+        Query finalQuery = queryTransform != null ? queryTransform.apply(query) : query;
+        return finalQuery;
     }
 
     public Yasqe getYasqe() {

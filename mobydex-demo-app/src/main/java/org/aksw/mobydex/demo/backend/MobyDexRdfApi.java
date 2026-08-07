@@ -41,16 +41,29 @@ import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 
 /** Caching wrapper (in-memory + disk). */
 public class MobyDexRdfApi {
-    private FileCache fileCache;
+    // Need separate caches to prevent recursive updates!
+    private FileCache projectCache;
+    private FileCache computationCache;
+    private FileCache cellCache;
 
     public MobyDexRdfApi() {
         super();
         Path cachePath = Path.of(System.getProperty("user.home")).resolve(".cache/mobydex");
-        this.fileCache = new FileCache(cachePath);
+        this.projectCache = new FileCache(cachePath);
+        this.computationCache = new FileCache(cachePath);
+        this.cellCache = new FileCache(cachePath);
     }
 
-    public FileCache getFileCache() {
-        return fileCache;
+    public FileCache getProjectCache() {
+        return projectCache;
+    }
+
+    public FileCache getComputationCache() {
+        return projectCache;
+    }
+
+    public FileCache getCellCache() {
+        return cellCache;
     }
 
     public static MobyDexRdfApi get() {
@@ -74,13 +87,13 @@ public class MobyDexRdfApi {
 
     public Model loadProjectGrid(long projectId) {
         List<String> projectKey = createKeyProjectGridFile(projectId);
-        Model result = fileCache.loadModel(projectKey, () -> MobyDexRdfApiRaw.loadProjectGrid(projectId));
+        Model result = projectCache.loadModel(projectKey, () -> MobyDexRdfApiRaw.loadProjectGrid(projectId));
         return result;
     }
 
     public boolean isProjectGridLoaded(long projectId) {
         List<String> projectGridFileKey = createKeyProjectGridFile(projectId);
-        Path path = PathUtils.resolve(fileCache.getCacheBasePath(), projectGridFileKey);
+        Path path = PathUtils.resolve(projectCache.getCacheBasePath(), projectGridFileKey);
         return Files.exists(path);
     }
 
@@ -93,7 +106,7 @@ public class MobyDexRdfApi {
     // HACK - this should be configurable per poi type.
     public boolean isProjectPoisLoaded(long projectId) {
         List<String> key = createKeyPoisFile(projectId);
-        Path path = PathUtils.resolve(fileCache.getCacheBasePath(), key);
+        Path path = PathUtils.resolve(projectCache.getCacheBasePath(), key);
         return Files.exists(path);
     }
 
@@ -110,7 +123,7 @@ public class MobyDexRdfApi {
         List<String> poiKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
                 .add("pois.ttl").buildList();
 
-        Model r = fileCache.loadModel(poiKey, () -> {
+        Model r = projectCache.loadModel(poiKey, () -> {
             Model projectGridModel = loadProjectGrid(projectId);
             Model poiTypeHistogramModel = loadPoiHistogramModel(projectGridModel, tagsFragment);
             return poiTypeHistogramModel;
@@ -125,7 +138,7 @@ public class MobyDexRdfApi {
         List<String> poiKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
                 .add("pois.ttl").buildList();
 
-        Model r = fileCache.loadModel(poiKey, () -> {
+        Model r = projectCache.loadModel(poiKey, () -> {
             Model poiTypeHistogramModel = loadPoiHistogramModel(projectGridModel, tagsFragment);
             return poiTypeHistogramModel;
         });
@@ -169,7 +182,7 @@ public class MobyDexRdfApi {
                 .add("computation" + computationId).buildList();
                 // .add("cell" + originCellId + ".ttl")
 
-        Path path = PathUtils.resolve(fileCache.getCacheBasePath(), computationKey);
+        Path path = PathUtils.resolve(computationCache.getCacheBasePath(), computationKey);
         long result = FileSets.countFlat(path, "cell[0-9][0-9]*.ttl");
         return result;
     }
@@ -185,10 +198,10 @@ public class MobyDexRdfApi {
         String urlStr = MobyDexRdfApiRaw.buildComputationUrl(computationId, originCellId);
         URI uri = URI.create(urlStr);
 
-        Path rdfPath = PathUtils.resolve(fileCache.getCacheBasePath(), dataTrigBz2);
+        Path rdfPath = PathUtils.resolve(projectCache.getCacheBasePath(), dataTrigBz2);
         if (!Files.exists(rdfPath)) {
             Path rdfPathTmp = rdfPath.resolveSibling(rdfPath.getFileName() + ".tmp");
-            Path jsonPath = PathUtils.resolve(fileCache.getCacheBasePath(), dataJsonBz2);
+            Path jsonPath = PathUtils.resolve(projectCache.getCacheBasePath(), dataJsonBz2);
             Path jsonPathTmp = jsonPath.resolveSibling(jsonPath.getFileName() + ".tmp");
             // System.out.println("Writing" + filePath);
 
@@ -246,7 +259,7 @@ public class MobyDexRdfApi {
 
     public Resource loadComputation(long projectId, long computationId, long originCellId) {
         List<String> cellKey = createCellKey(projectId, computationId, originCellId);
-        Resource result = (Resource)fileCache.getCache().get(cellKey, k -> {
+        Resource result = (Resource)computationCache.getCache().get(cellKey, k -> {
             Resource r;
             try {
                 r = loadComputationNew(projectId, computationId, originCellId);

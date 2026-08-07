@@ -3,6 +3,9 @@ package org.aksw.mobydex.demo.view;
 import java.util.Optional;
 
 import com.vaadin.flow.component.Text;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
@@ -11,6 +14,7 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.spring.annotation.RouteScopeOwner;
 
 import org.aksw.mobydex.demo.MainLayout;
+import org.aksw.mobydex.demo.appstate.ProjectSelectionState;
 import org.aksw.mobydex.demo.backend.ComputationDao;
 import org.aksw.mobydex.demo.backend.ComputationDao.Computation;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
@@ -18,6 +22,8 @@ import org.aksw.mobydex.demo.backend.ProjectDao;
 import org.aksw.mobydex.demo.backend.ProjectDao.Project;
 import org.aksw.mobydex.demo.component.ComputationComboBox;
 import org.aksw.mobydex.demo.component.ProjectComboBox;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Route(value = "project", layout = MainLayout.class)
 @PageTitle("Project Selection")
@@ -27,6 +33,8 @@ public class ProjectSelectorView
     implements BeforeEnterObserver
 {
     private static final long serialVersionUID = 1L;
+
+    private static final Logger logger = LoggerFactory.getLogger(ProjectSelectorView.class);
 
     // private ComboBox<Project> projectSelector;
     private ProjectComboBox projectSelector;
@@ -39,6 +47,8 @@ public class ProjectSelectorView
 
     // private Long currentProjectId;
     private ProjectSelectionState projectSelectionState;
+
+    private Button loadProjectBtn = new Button("Load Project");
 
     public ProjectSelectorView(
             @RouteScopeOwner(MainLayout.class) ProjectSelectionState projectSelectionState,
@@ -94,14 +104,21 @@ public class ProjectSelectorView
             computationStatusBox.setText("Cached cells: " + count);
         });
 
+        loadProjectBtn.addClickListener(ev -> {
+            UI.getCurrent().navigate(ReachabilityView.class);
+        });
+
+        loadProjectBtn.addThemeVariants(ButtonVariant.PRIMARY, ButtonVariant.SUCCESS);
+
         add(projectSelector);
         add(projectStatusBox);
         add(computationSelector);
         add(computationStatusBox);
+        add(loadProjectBtn);
     }
 
     void refreshSelection() {
-        System.err.println("Refreshing selection: " + projectSelectionState);
+        logger.info("Refreshing selection: " + projectSelectionState);
         Long projectId;
         if ((projectId = projectSelectionState.getProjectId()) != null) {
             Project selectedProject = projectDao.fetchItem(projectId);

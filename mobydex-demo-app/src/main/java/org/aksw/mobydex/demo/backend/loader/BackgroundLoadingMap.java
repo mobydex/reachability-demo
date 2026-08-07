@@ -17,6 +17,9 @@ import io.reactivex.rxjava3.core.BackpressureStrategy;
 import io.reactivex.rxjava3.core.Emitter;
 import io.reactivex.rxjava3.core.Flowable;
 
+// TODO: Instead of keyIterator, a keySet could be used.
+//   Usually the items for lazy loading is not that large, that the convenience of
+//   .keySet().size() and .keySet().contains() could be provided.
 public class BackgroundLoadingMap<K, V>
     implements Closeable
 {
@@ -132,18 +135,6 @@ public class BackgroundLoadingMap<K, V>
             if (Thread.interrupted()) {
                 return;
             }
-
-            ++i;
-            if (i > 50) {
-                break;
-            }
-
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
 
             K item = keyIterator.next();
             counter.incrementAndGet();

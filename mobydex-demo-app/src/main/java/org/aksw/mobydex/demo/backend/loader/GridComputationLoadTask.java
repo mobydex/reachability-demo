@@ -63,6 +63,10 @@ public class GridComputationLoadTask
         });
     }
 
+    public BackgroundLoadingMap<Node, Table> getMap() {
+        return map;
+    }
+
     public long getTotalTasks() {
         return project.getCells().size();
     }

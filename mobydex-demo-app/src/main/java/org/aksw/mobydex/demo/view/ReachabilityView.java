@@ -11,12 +11,8 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.TreeMap;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -60,6 +56,7 @@ import org.aksw.mobydex.demo.component.TabSheet;
 import org.aksw.mobydex.demo.domain.GridCell;
 import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
 import org.aksw.mobydex.demo.domain.Project;
+import org.aksw.mobydex.demo.interpolation.Scale;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
 import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
@@ -139,71 +136,122 @@ public class ReachabilityView extends VerticalLayout {
 
     protected GridComputationLoadTask gridComputationLoadTask = null;
 
-    protected Timer gridUpdateTimer = new Timer();
-    protected volatile TimerTask gridUpdateTask = null;
-    protected BlockingQueue<GridCell> overviewGridQueue = new LinkedBlockingDeque<>();
+//    protected Timer gridUpdateTimer = new Timer();
+//    protected volatile TimerTask gridUpdateTask = null;
+//    protected BlockingQueue<GridCell> overviewGridQueue = new LinkedBlockingDeque<>();
 
-    protected void processOverviewGridQueue() {
-        System.out.println("PROCESSING QUEUE");
-        List<GridCell> tasks = new ArrayList<>();
-        overviewGridQueue.drainTo(tasks);
-
-        for (GridCell cell : tasks) {
-            String cellId = cell.getURI();
-            LPath<?> cellPath = cellIdToLayer.get(cellId);
-            System.out.println("Geom for " + cellId + " -> " + cellPath);
-            LPolylineOptions style = new LPolylineOptions();
-            CellStyles.purple(style);
-            cellPath.setStyle(style);
-        }
-    }
+//    protected void processOverviewGridQueue() {
+//        System.out.println("PROCESSING QUEUE");
+//        List<GridCell> tasks = new ArrayList<>();
+//        overviewGridQueue.drainTo(tasks);
+//
+//        for (GridCell cell : tasks) {
+//            String cellId = cell.getURI();
+//            LPath<?> cellPath = cellIdToLayer.get(cellId);
+//            System.out.println("Geom for " + cellId + " -> " + cellPath);
+//            LPolylineOptions style = new LPolylineOptions();
+//            CellStyles.purple(style);
+//            cellPath.setStyle(style);
+//        }
+//    }
 
     protected void paintGridCell(GridCell gridCell) {
+        // get the tags
+        Set<Binding> tagSet = new HashSet<>();
+        Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toTable().rows().forEachRemaining(tagSet::add);
+        int tagSetSize = tagSet.size();
+
+        Table table = gridComputationLoadTask.getMap().getIfPresent(gridCell.asNode());
+        long match = 0;
+        for (Binding b : (Iterable<Binding>)() -> table.rows()) {
+//            Binding tag = BindingUtils.project(b, "co", "cop");
+//            if (tagSet.contains(tag)) {
+//                ++match;
+//            }
+
+            Number duration = BindingUtils.getNumberNullable(b, "duration");
+            if (duration != null && duration.floatValue() < durationThreshold) {
+                ++match;
+            }
+        }
+
+        float ratioThreshold = 0.5f;
+        float ratio = match / (float)tagSetSize;
+
+        float[] color = Scale.ofFloat(3)
+            .put(0.0f, new float[] {1.0f, 0.0f, 0.0f})
+            .put(0.4f, new float[] {0.9f, 0.7f, 0.1f})
+            .put(0.6f, new float[] {0.0f, 0.5f, 0.0f})
+            .put(0.8f, new float[] {0.0f, 1.0f, 0.0f})
+            .interpolate(ratio);
+
+        String colorStr = toColorHexString(color);
+
         String cellId = gridCell.getURI();
         LPath<?> cellPath = cellIdToLayer.get(cellId);
         System.out.println("Geom for " + cellId + " -> " + cellPath);
-        LPolylineOptions style = new LPolylineOptions();
-        CellStyles.purple(style);
+        LPolylineOptions style = new LPolylineOptions()
+                .withColor(colorStr).withOpacity(0.8).withFillColor(colorStr).withFillOpacity(0.8);
+
+        // CellStyles.purple(style);
         cellPath.setStyle(style);
     }
 
+    public static String toColorHexString(float[] color) {
+        if (color == null || color.length != 3) {
+            throw new IllegalArgumentException(
+                    "Color must be a 3-component RGB array");
+        }
+
+        int red = Math.round(clamp01(color[0]) * 255.0f);
+        int green = Math.round(clamp01(color[1]) * 255.0f);
+        int blue = Math.round(clamp01(color[2]) * 255.0f);
+
+        return String.format("#%02X%02X%02X", red, green, blue);
+    }
+
+    private static float clamp01(float value) {
+        if (Float.isNaN(value)) {
+            throw new IllegalArgumentException(
+                    "Color components must not be NaN");
+        }
+
+        return Math.max(0.0f, Math.min(1.0f, value));
+    }
     @Override
     protected void onAttach(AttachEvent event) {
         super.onAttach(event);
         ui = event.getUI();
-
-
-
     }
 
-    Object myLock = new Object();
-
-    public void enqueGridCell(GridCell cell) {
-        System.out.println("Enqueing: " + cell.getURI());
-
-        overviewGridQueue.add(cell);
-
-        if (gridUpdateTask == null) {
-            // synchronized (myLock) {
-                if (gridUpdateTask == null) {
-                    // if (task != null)
-                    gridUpdateTask = new TimerTask() {
-                        @Override
-                        public void run() {
-                            System.out.println("Refreshing UI");
-                            gridUpdateTask = null;
-                            ui.accessLater(() -> {
-                                // synchronized (myLock) {
-                                    processOverviewGridQueue();
-                                // }
-                            }, null);
-                        }
-                    };
-                    gridUpdateTimer.schedule(gridUpdateTask, 1000);
-                }
-            // }
-        }
-    }
+//    Object myLock = new Object();
+//
+//    public void enqueGridCell(GridCell cell) {
+//        System.out.println("Enqueing: " + cell.getURI());
+//
+//        overviewGridQueue.add(cell);
+//
+//        if (gridUpdateTask == null) {
+//            // synchronized (myLock) {
+//                if (gridUpdateTask == null) {
+//                    // if (task != null)
+//                    gridUpdateTask = new TimerTask() {
+//                        @Override
+//                        public void run() {
+//                            System.out.println("Refreshing UI");
+//                            gridUpdateTask = null;
+//                            ui.accessLater(() -> {
+//                                // synchronized (myLock) {
+//                                    processOverviewGridQueue();
+//                                // }
+//                            }, null);
+//                        }
+//                    };
+//                    gridUpdateTimer.schedule(gridUpdateTask, 1000);
+//                }
+//            // }
+//        }
+//    }
 
     public enum CellSelectionMode {
         FOCUS("Focus"), // Focus on the selected cell, making it the origin of reachability computations.
@@ -732,16 +780,16 @@ public class ReachabilityView extends VerticalLayout {
 //            map.flyToBounds(bounds, opts);
         }
 
-        FileCache fileCache = mobyDexApi.getFileCache();
+        FileCache fileCache = mobyDexApi.getProjectCache();
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
         Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
-        gridComputationLoadTask = new GridComputationLoadTask(fileCache, 2, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
+        gridComputationLoadTask = new GridComputationLoadTask(fileCache, 1, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
 
 //        System.out.println("STARTING LOAD");
 
         gridComputationLoadTask.flow()
             .subscribeOn(Schedulers.io(), false)
-            .buffer(1000, TimeUnit.MILLISECONDS)
+            .buffer(1000, TimeUnit.MILLISECONDS, 50)
             .filter(buffer -> !buffer.isEmpty())
             .forEach(gridCells -> {
                 System.out.println(String.format("Received batch of %d cells", gridCells.size()));
@@ -749,7 +797,7 @@ public class ReachabilityView extends VerticalLayout {
                     for (GridCell cell : gridCells) {
                         paintGridCell(cell);
                     }
-                });
+                }); //, null);
             // logger.info("Loaded: " + gridCell.getURI());
             //enqueGridCell(gridCell);
             // gridComputationLoadTask.loadCell(computationId, null)
