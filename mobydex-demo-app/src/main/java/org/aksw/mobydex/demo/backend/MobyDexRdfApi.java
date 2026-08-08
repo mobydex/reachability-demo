@@ -10,6 +10,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,12 +24,15 @@ import org.aksw.jenax.dataaccess.sparql.creator.FileSets;
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.mobydex.demo.domain.Computation;
+import org.aksw.mobydex.demo.domain.GridCell;
 import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
 import org.aksw.mobydex.demo.domain.Project;
 import org.aksw.shellgebra.exec.ListBuilder;
+import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.jena.atlas.io.IOX;
+import org.apache.jena.geosparql.implementation.GeometryWrapper;
 import org.apache.jena.query.Query;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
@@ -38,6 +42,8 @@ import org.apache.jena.sparql.algebra.Table;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.exec.QueryExec;
 import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
 
 /** Caching wrapper (in-memory + disk). */
 public class MobyDexRdfApi {
@@ -70,12 +76,25 @@ public class MobyDexRdfApi {
         return new MobyDexRdfApi();
     }
 
-    public static List<String> getProjectGridKey(long projectId) {
-        return List.of("projects", Long.toString(projectId));
+    public static ListBuilder<String> getProjectGridKey(long projectId) {
+        return ListBuilder.ofStrings("projects", Long.toString(projectId));
+    }
+
+    public static ListBuilder<String> getComputationKey(long projectId, long computationId) {
+        return getProjectGridKey(projectId).add("computations").add(Long.toString(computationId));
+    }
+
+//    public static ListBuilder<String> getCellKey(long projectId, long computationId, long cellId) {
+//        return getComputationKey(projectId, computationId).add("cells").add(Long.toString(cellId));
+//    }
+
+    // Only returns the "/cells" folder for (project, computationId)
+    public static ListBuilder<String> getCellsKey(long projectId, long computationId) {
+        return getComputationKey(projectId, computationId).add("cells");
     }
 
     List<String> createKeyProjectGridFile(long projectId) {
-        List<String> gridFileKey = ListBuilder.ofStrings(getProjectGridKey(projectId)).add("grid.ttl").buildList();
+        List<String> gridFileKey = getProjectGridKey(projectId).add("grid.ttl").buildList();
         return gridFileKey;
     }
 
@@ -99,7 +118,7 @@ public class MobyDexRdfApi {
 
 
     public List<String> createKeyPoisFile(long projectId) {
-        List<String> poiKey = ListBuilder.ofStrings(getProjectGridKey(projectId)).add("pois.ttl").buildList();
+        List<String> poiKey = getProjectGridKey(projectId).add("pois.ttl").buildList();
         return poiKey;
     }
 
@@ -120,7 +139,7 @@ public class MobyDexRdfApi {
      */
     @Deprecated
     public Model loadAndCachePoiHistogramModel(long projectId, Fragment2 tagsFragment) {
-        List<String> poiKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
+        List<String> poiKey = getProjectGridKey(projectId)
                 .add("pois.ttl").buildList();
 
         Model r = projectCache.loadModel(poiKey, () -> {
@@ -135,7 +154,7 @@ public class MobyDexRdfApi {
         int projectId = Objects.requireNonNull(project.getProjectId());
         Model projectGridModel = project.getModel();
 
-        List<String> poiKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
+        List<String> poiKey = getProjectGridKey(projectId)
                 .add("pois.ttl").buildList();
 
         Model r = projectCache.loadModel(poiKey, () -> {
@@ -178,8 +197,7 @@ public class MobyDexRdfApi {
 
 
     public long getComputedCells(long projectId, long computationId) {
-        List<String> computationKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
-                .add("computation" + computationId).buildList();
+        List<String> computationKey = getComputationKey(projectId, computationId).buildList();
                 // .add("cell" + originCellId + ".ttl")
 
         Path path = PathUtils.resolve(computationCache.getCacheBasePath(), computationKey);
@@ -188,12 +206,11 @@ public class MobyDexRdfApi {
     }
 
     public Computation loadComputationNew(long projectId, long computationId, long originCellId) throws IOException, InterruptedException {
-        List<String> computationKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
-                .add("computation" + computationId).buildList();
+        List<String> cellsKey = getCellsKey(projectId, computationId).buildList();
                 // .add("cell" + originCellId).buildList();
 
-        List<String> dataJsonBz2 = ListBuilder.ofStrings(computationKey).add("cell" + originCellId + ".data.json.bz2").buildList();
-        List<String> dataTrigBz2 = ListBuilder.ofStrings(computationKey).add("cell" + originCellId + ".data.trig.bz2").buildList();
+        List<String> dataJsonBz2 = ListBuilder.ofStrings(cellsKey).add("cell" + originCellId + ".data.json.bz2").buildList();
+        List<String> dataTrigBz2 = ListBuilder.ofStrings(cellsKey).add("cell" + originCellId + ".data.trig.bz2").buildList();
 
         String urlStr = MobyDexRdfApiRaw.buildComputationUrl(computationId, originCellId);
         URI uri = URI.create(urlStr);
@@ -251,7 +268,7 @@ public class MobyDexRdfApi {
     }
 
     public static List<String> createCellKey(long projectId, long computationId, long originCellId) {
-        List<String> cellKey = ListBuilder.ofStrings(getProjectGridKey(projectId))
+        List<String> cellKey = getProjectGridKey(projectId)
                 .add("computation" + computationId)
                 .add("cell" + originCellId + ".ttl").buildList();
         return cellKey;
@@ -294,4 +311,29 @@ public class MobyDexRdfApi {
 //        });
 //        return result;
     }
+
+    public static Geometry getUnionGeom(Project project) {
+        Geometry result = project.getCells().stream()
+                .map(GridCell::getHasGeometry)
+                .flatMap(Collection::stream)
+                .map(org.aksw.jenax.model.geosparql.Geometry::getAsGeometryWrapper)
+                .filter(Objects::nonNull)
+                .map(GeometryWrapper::getParsingGeometry)
+                .filter(Objects::nonNull)
+                .collect(JtsUtils.union());
+            return result;
+    }
+
+    public static Envelope getEnvelope(Project project) {
+        Envelope result = project.getCells().stream()
+            .map(GridCell::getHasGeometry)
+            .flatMap(Collection::stream)
+            .map(org.aksw.jenax.model.geosparql.Geometry::getAsGeometryWrapper)
+            .filter(Objects::nonNull)
+            .map(GeometryWrapper::getParsingGeometry)
+            .filter(Objects::nonNull)
+            .collect(JtsUtils.unionEnvelopeGeometry());
+        return result;
+    }
+
 }

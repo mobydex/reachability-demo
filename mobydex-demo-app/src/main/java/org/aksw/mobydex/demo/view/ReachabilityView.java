@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import com.google.common.primitives.Ints;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.ClientCallable;
+import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -30,8 +31,16 @@ import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout.Orientation;
 import com.vaadin.flow.component.tabs.Tab;
+import com.vaadin.flow.router.AfterNavigationEvent;
+import com.vaadin.flow.router.AfterNavigationListener;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterObserver;
+import com.vaadin.flow.router.BeforeLeaveEvent;
+import com.vaadin.flow.router.BeforeLeaveObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.spring.annotation.RouteScope;
+import com.vaadin.flow.spring.annotation.RouteScopeOwner;
 
 import org.aksw.commons.index.StorageComposers;
 import org.aksw.jena_sparql_api.vaadin.util.GridLike;
@@ -45,6 +54,7 @@ import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
 import org.aksw.mobydex.demo.CellStyles;
 import org.aksw.mobydex.demo.MainLayout;
+import org.aksw.mobydex.demo.appstate.AppState;
 import org.aksw.mobydex.demo.backend.FileCache;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
@@ -81,7 +91,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.EnableAsync;
 
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subjects.CompletableSubject;
 import software.xdev.chartjs.model.charts.BarChart;
 import software.xdev.chartjs.model.data.BarData;
 import software.xdev.chartjs.model.dataset.BarDataset;
@@ -107,10 +119,14 @@ import tools.jackson.databind.node.ObjectNode;
 
 @Route(value = "reachability", layout = MainLayout.class)
 @PageTitle("Demo")
+@RouteScope
+@RouteScopeOwner(MainLayout.class)
 // @PreserveOnRefresh
 // @Push(PushMode.AUTOMATIC)
 @EnableAsync
-public class ReachabilityView extends VerticalLayout {
+public class ReachabilityView extends VerticalLayout
+    implements BeforeEnterObserver, AfterNavigationListener, BeforeLeaveObserver
+{
     private static final Logger logger = LoggerFactory.getLogger(ReachabilityView.class);
 
     private static final long serialVersionUID = 1L;
@@ -135,6 +151,9 @@ public class ReachabilityView extends VerticalLayout {
     protected CellSelectionMode cellSelectionMode = CellSelectionMode.FOCUS;
 
     protected GridComputationLoadTask gridComputationLoadTask = null;
+
+    private final CompletableSubject mapReady = CompletableSubject.create();
+
 
 //    protected Timer gridUpdateTimer = new Timer();
 //    protected volatile TimerTask gridUpdateTask = null;
@@ -218,11 +237,6 @@ public class ReachabilityView extends VerticalLayout {
 
         return Math.max(0.0f, Math.min(1.0f, value));
     }
-    @Override
-    protected void onAttach(AttachEvent event) {
-        super.onAttach(event);
-        ui = event.getUI();
-    }
 
 //    Object myLock = new Object();
 //
@@ -298,6 +312,7 @@ public class ReachabilityView extends VerticalLayout {
 
     private GridSparqlBinding poiReachabilityGrid = new GridSparqlBinding();
 
+    private AppState appState;
     private ProjectDao projectDao;
 
     public static String fmtDurationS2M(Long durationSeconds) {
@@ -306,13 +321,13 @@ public class ReachabilityView extends VerticalLayout {
             : decimalFormat.format(durationSeconds / 60.0) + "min";
     }
 
-    public ReachabilityView(ProjectDao projectDao) {
-        try {
-            mobyDexApi = new MobyDexRdfApi();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public ReachabilityView(
+            @RouteScopeOwner(MainLayout.class) AppState appState,
+            ProjectDao projectDao) {
+        this.appState = appState;
         this.projectDao = projectDao;
+
+        this.mobyDexApi = appState.getMobyDexRdfApi();
 
         setSizeFull();
 
@@ -373,7 +388,7 @@ public class ReachabilityView extends VerticalLayout {
             mapContainer.getlMap().invalidateSize(false);
         });
 
-        mapContainer = createLMap();
+        mapContainer = createLMap(mapReady);
         mapAndChartSplit.addToPrimary(mapContainer);
         converter = new JtsToLMapConverter(reg);
 
@@ -534,6 +549,11 @@ public class ReachabilityView extends VerticalLayout {
 
         BarChart barChart = new BarChart(barData).setOptions(options);
         reachabilityChart.showChart(barChart.toJson());
+
+//        mapContainer.addAttachListener(ev -> {
+//            loadProjectGrid();
+//            clearCells();
+//        });
     }
 
     // TODO Misleading name - it colors the focus cell; it does not paint the overview grid
@@ -750,8 +770,8 @@ public class ReachabilityView extends VerticalLayout {
     }
 
     public void loadProjectGrid() {
-        MobyDexRdfApi mobyDexRdfApi = MobyDexRdfApi.get();
-        Project project = mobyDexRdfApi.loadProject(2);
+        // MobyDexRdfApi mobyDexRdfApi = MobyDexRdfApi.get();
+        Project project = mobyDexApi.loadProject(2);
         Model projectModel = project.getModel();
 
         Table bindings = QueryExec.graph(projectModel.getGraph()).query("""
@@ -808,12 +828,15 @@ public class ReachabilityView extends VerticalLayout {
         // gridComputationLoadTask.startBackgroundLoading();
     }
 
-    private MapContainer createLMap() {
+    private MapContainer createLMap(CompletableSubject mapReady) {
         // Create and add the MapContainer (which contains the map) to the UI
-        MapContainer mapContainer = new MapContainer(reg, map ->
-        // This needs to be done after the map was initially resized
-        // otherwise the view is calculated incorrectly
-        map.fitWorld());
+        MapContainer mapContainer = new MapContainer(reg, map -> {
+            // This needs to be done after the map was initially resized
+            // otherwise the view is calculated incorrectly
+            map.fitWorld();
+            mapReady.onComplete();
+            });
+
         mapContainer.setSizeFull();
         mapContainer.getlMap().fixInvalidSizeAfterCreation(ID);
         this.add(mapContainer);
@@ -889,6 +912,39 @@ public class ReachabilityView extends VerticalLayout {
         // obj.get("lat").asDouble() + " " + obj.get("lng").asDouble());
     }
 
+
+    private Disposable projectStateDisposable;
+
+    @Override
+    public void beforeEnter(BeforeEnterEvent event) {
+        // ui = event.getUI();
+    }
+
+    @Override
+    protected void onAttach(AttachEvent event) {
+        super.onAttach(event);
+        ui = event.getUI();
+        projectStateDisposable = mapReady.andThen(appState.projectState()).subscribe(ev -> {
+            loadProjectGrid();
+            // refreshStats();
+        });
+    }
+
+    @Override
+    protected void onDetach(DetachEvent detachEvent) {
+        if (projectStateDisposable != null) {
+            projectStateDisposable.dispose();
+        }
+        super.onDetach(detachEvent);
+    }
+
+    @Override
+    public void beforeLeave(BeforeLeaveEvent event) {
+    }
+
+    @Override
+    public void afterNavigation(AfterNavigationEvent event) {
+    }
 }
 
 

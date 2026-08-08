@@ -1,9 +1,5 @@
 package org.aksw.mobydex.demo.view;
 
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.Grid.SelectionMode;
 import com.vaadin.flow.component.grid.GridMultiSelectionModel;
@@ -12,6 +8,7 @@ import com.vaadin.flow.component.grid.HeaderRow;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.spring.annotation.RouteScopeOwner;
 
 import org.aksw.jena_sparql_api.vaadin.util.GridWrapper;
 import org.aksw.jena_sparql_api.vaadin.util.GridWrapperBase;
@@ -19,6 +16,7 @@ import org.aksw.jena_sparql_api.vaadin.util.VaadinSparqlUtils;
 import org.aksw.jenax.arq.util.syntax.QueryUtils;
 import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
 import org.aksw.mobydex.demo.MainLayout;
+import org.aksw.mobydex.demo.appstate.AppState;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.Query;
@@ -33,13 +31,13 @@ public class PoiListView
 {
     private static final long serialVersionUID = 1L;
 
-//    protected Executor executor;
-
     protected Grid<Binding> resultSetGrid;
     protected HeaderRow resultSetGridHeaderRow;
     protected HeaderRow resultSetGridFilterRow;
 
-    public PoiListView() {
+    public PoiListView(
+        @RouteScopeOwner(MainLayout.class) AppState appState
+    ) {
 //        ExecutorService executorService = Executors.newCachedThreadPool();
 //        executor = executorService;
 

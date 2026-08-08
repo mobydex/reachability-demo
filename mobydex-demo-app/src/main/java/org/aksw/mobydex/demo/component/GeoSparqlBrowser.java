@@ -1,5 +1,6 @@
 package org.aksw.mobydex.demo.component;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -7,15 +8,20 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.MoreExecutors;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.dnd.DragSource;
 import com.vaadin.flow.component.dnd.DropTarget;
-import com.vaadin.flow.component.grid.Grid.SelectionMode;
+import com.vaadin.flow.component.grid.Grid.Column;
+import com.vaadin.flow.component.grid.HeaderRow;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
+import org.aksw.commons.collections.PolaritySet;
+import org.aksw.jena_sparql_api.vaadin.util.ColumnFactorySparql;
+import org.aksw.jena_sparql_api.vaadin.util.GridLike;
 import org.aksw.jena_sparql_api.vaadin.util.GridWrapper;
 import org.aksw.jena_sparql_api.vaadin.util.GridWrapperBase;
 import org.aksw.jena_sparql_api.vaadin.util.VaadinSparqlUtils;
@@ -23,7 +29,6 @@ import org.aksw.jenax.arq.util.query.QueryTransform;
 import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
 import org.aksw.jenax.stmt.util.QueryParseExceptionUtils;
 import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
-import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
 import org.aksw.vaadin.yasqe.Yasqe;
 import org.aksw.vaadin.yasqe.YasqeConfig;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -33,6 +38,8 @@ import org.apache.jena.query.QueryParseException;
 import org.apache.jena.sparql.core.Var;
 import org.apache.jena.sparql.engine.binding.Binding;
 
+import io.reactivex.rxjava3.subjects.BehaviorSubject;
+import io.reactivex.rxjava3.subjects.CompletableSubject;
 import software.xdev.vaadin.maps.leaflet.MapContainer;
 import software.xdev.vaadin.maps.leaflet.basictypes.LLatLng;
 import software.xdev.vaadin.maps.leaflet.layer.LLayerGroup;
@@ -90,6 +97,9 @@ public class GeoSparqlBrowser extends VerticalLayout {
     protected LLayerGroup connectionGroup;
 
     private String ID;
+
+    private final CompletableSubject mapReady = CompletableSubject.create();
+    private final BehaviorSubject<PolaritySet<Binding>> selectedBindings = BehaviorSubject.create(); //Default(PolaritySet.create(true));
 
     // @Autowired
     public GeoSparqlBrowser(QueryExecutionFactoryQuery qef, QueryTransform queryTransform) {
@@ -177,6 +187,49 @@ public class GeoSparqlBrowser extends VerticalLayout {
         // runBtn.addClickListener(ev -> {
             ///textArea.removeAllMarkers();
 
+        Checkbox selectAll = new Checkbox();
+        selectAll.addValueChangeListener(ev -> {
+
+        });
+
+        // PolaritySet<Binding> selection = PolaritySet.create(true);
+
+        boolean showSelectAll = true;
+        ColumnFactorySparql columnFactory = new ColumnFactorySparql() {
+            @Override
+            public void beforeRefresh(GridLike<Binding> grid, HeaderRow headerRow, List<Var> vars) {
+                Column<Binding> selectionColumn =
+                    grid.addComponentColumn(row -> {
+                        Checkbox cb = new Checkbox();
+                        // cb.setValue(selection.contains(row));
+
+                        cb.addValueChangeListener(ev -> {
+                            if (ev.getValue()) {
+                                // selection.setSelected(row, ev.getValue());
+                            } else {
+                                // selection = PolaritySet.createDifferenceView(selection, PolaritySet.create(true, row));
+                            }
+                            // updateMapSelection();
+                        });
+
+                        return cb;
+                    })
+                    .setResizable(true)
+                    // .setAutoWidth(true)
+                    .setWidth("30px")
+                    .setFlexGrow(0)
+                    .setKey("__selection__");
+
+                selectionColumn.setHeader(selectAll);
+            }
+        };
+
+        selectAll.addValueChangeListener(ev -> {
+            // selection.setAllSelected(ev.getValue());
+            // reseltS.getDataProvider().refreshAll();
+            // updateMapSelection();
+        });
+
         yasqe.addQueryButtonListener(ev -> {
             String queryStr = ev.getValue();
             Query query;
@@ -203,9 +256,8 @@ public class GeoSparqlBrowser extends VerticalLayout {
             }
 
             Query finalQuery = toEffectiveQuery(query);
-
             GridWrapper<Binding> wrappedGrid = GridWrapperBase.wrap(resultSetGrid);
-            VaadinSparqlUtils.setQueryForGridBinding(wrappedGrid, resultSetGrid.getHeaderRow(), qef, finalQuery);
+            VaadinSparqlUtils.setQueryForGridBinding(wrappedGrid, resultSetGrid.getHeaderRow(), qef, finalQuery, null, columnFactory);
             VaadinSparqlUtils.configureGridFilter(wrappedGrid, resultSetGrid.getFilterRow(), finalQuery.getProjectVars(),
                     var -> str -> VaadinSparqlUtils.createFilterExpr(var, str).orElse(null));
 
@@ -231,7 +283,7 @@ public class GeoSparqlBrowser extends VerticalLayout {
 //        map.setWidthFull();
 //        LayerGroup group = new FeatureGroup();
 //        group.addTo(map);
-        mapContainer = createLMap();
+        mapContainer = createLMap(mapReady);
         mapContainer.setSizeUndefined();
         mapContainer.setWidthFull();
 
@@ -241,9 +293,14 @@ public class GeoSparqlBrowser extends VerticalLayout {
         // Grid<Binding> resultSetGrid = new Grid<>();
         resultSetGrid = new GridSparqlBinding();
         resultSetGrid.setMultiSort(true);
-        resultSetGrid.setSelectionMode(SelectionMode.MULTI);
-        resultSetGrid.getSelectionModel().addSelectionListener(ResultSetMapRendererL.createGridListener(mapContainer.getlMap(), connectionGroup));
+        // resultSetGrid.setSelectionMode(SelectionMode.MULTI);
+        // resultSetGrid.getSelectionModel().addSelectionListener(ResultSetMapRendererL.createGridListener(mapContainer.getlMap(), connectionGroup));
         resultSetGrid.setPageSize(100);
+
+
+        // GridMultiSelectionModel<Binding> selectionModel = (GridMultiSelectionModel<Binding>)resultSetGrid.getSelectionModel();
+        // selectionModel.setSelectAllCheckboxVisibility(SelectAllCheckboxVisibility.VISIBLE);
+        // selectionModel.addSelectionListener(ResultSetMapRendererL.createGridListener(mapContainer.getlMap(), connectionGroup));
 
         resultSetGrid.setEmptyStateText("No data to display");
         resultSetGrid.setSizeFull();
@@ -264,6 +321,14 @@ public class GeoSparqlBrowser extends VerticalLayout {
         // add(pivotColumnVarsSortable);
 
         add(resultSetGrid);
+    }
+
+    public CompletableSubject getMapReady() {
+        return mapReady;
+    }
+
+    public MapContainer getMapContainer() {
+        return mapContainer;
     }
 
     protected Query getRawQuery(String queryString) {
@@ -301,9 +366,11 @@ public class GeoSparqlBrowser extends VerticalLayout {
         return yasqe;
     }
 
-    private MapContainer createLMap() {
+    private MapContainer createLMap(CompletableSubject mapReady) {
         // Create and add the MapContainer (which contains the map) to the UI
-        MapContainer mapContainer = new MapContainer(reg);
+        MapContainer mapContainer = new MapContainer(reg, map -> {
+            mapReady.onComplete();
+        });
         //this.add(mapContainer);
 
         LMap map = mapContainer.getlMap();
@@ -323,6 +390,7 @@ public class GeoSparqlBrowser extends VerticalLayout {
 //            .addTo(map);
         return mapContainer;
     }
+
 
 //    private LeafletMap createConnectionsMap() {
 //        MapOptions options = new DefaultMapOptions();

@@ -1,7 +1,9 @@
 package org.aksw.mobydex.demo;
 
+import org.aksw.mobydex.demo.appstate.AppState;
 import org.aksw.mobydex.demo.backend.ComputationDao;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
+import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.aksw.mobydex.demo.backend.ProjectDao;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +17,6 @@ public class ConfigMobyDexDemo {
     @Bean
     public MobyDexRdfApi mobyDexRdfApi() {
         // cacheBasePath = Path.of(System.getProperty("user.home")).resolve(".cache/mobydex");
-
         return MobyDexRdfApi.get();
     }
 
@@ -34,6 +35,12 @@ public class ConfigMobyDexDemo {
         return new ComputationDao(restTemplate, baseUrl);
     }
 
+    @Bean
+    public AppState appState(MobyDexRdfApi mobyDexRdfApi) {
+        AppState result = new AppState(mobyDexRdfApi);
+        result.setSelectedTags(OsmRdfApi.getPoiCategories());
+        return result;
+    }
 
     public static RestTemplate newRestTemplate() {
         return new RestTemplate();

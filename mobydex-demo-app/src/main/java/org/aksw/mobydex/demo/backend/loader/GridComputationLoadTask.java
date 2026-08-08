@@ -13,7 +13,6 @@ import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
 import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.aksw.mobydex.demo.domain.GridCell;
 import org.aksw.mobydex.demo.domain.Project;
-import org.aksw.shellgebra.exec.ListBuilder;
 import org.apache.jena.graph.Node;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
@@ -80,10 +79,8 @@ public class GridComputationLoadTask
     }
 
     public static List<String> createKeyPoiTable(long projectId, long computationId, long originCellId) {
-        List<String> cellKey = ListBuilder.ofStrings(MobyDexRdfApi.getProjectGridKey(projectId))
-            .add("computation" + computationId)
-            .add("cell" + originCellId)
-            .add("reachablePois.srj.bz2")
+        List<String> cellKey = MobyDexRdfApi.getCellsKey(projectId, computationId)
+            .add("cell" + originCellId + ".reachablePois.srj.bz2")
             .buildList();
         return cellKey;
     }

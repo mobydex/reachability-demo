@@ -14,6 +14,7 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.spring.annotation.RouteScopeOwner;
 
 import org.aksw.mobydex.demo.MainLayout;
+import org.aksw.mobydex.demo.appstate.AppState;
 import org.aksw.mobydex.demo.appstate.ProjectSelectionState;
 import org.aksw.mobydex.demo.backend.ComputationDao;
 import org.aksw.mobydex.demo.backend.ComputationDao.Computation;
@@ -45,33 +46,31 @@ public class ProjectSelectorView
     private ProjectDao projectDao;
     private ComputationDao computationDao;
 
-    // private Long currentProjectId;
-    private ProjectSelectionState projectSelectionState;
-
     private Button loadProjectBtn = new Button("Load Project");
 
+    // private Long currentProjectId;
+    private AppState appState;
+    private ProjectSelectionState projectSelectionState;
+
+    private MobyDexRdfApi mobyDexRdfApi;
+
     public ProjectSelectorView(
+            @RouteScopeOwner(MainLayout.class) AppState appState,
             @RouteScopeOwner(MainLayout.class) ProjectSelectionState projectSelectionState,
+            // MobyDexRdfApi mobyDexRdfApi,
             ProjectDao projectDao,
             ComputationDao computationDao
             ) {
         super();
+        this.appState = appState;
         this.projectSelectionState = projectSelectionState;
 
         this.projectDao = projectDao;
         this.computationDao = computationDao;
 
-        MobyDexRdfApi mobyDexRdfApi = MobyDexRdfApi.get(); // TODO Inject
-//        RestTemplate restTemplate = new RestTemplate();
-//        .setConnectTimeout(Duration.ofSeconds(5))
-//        .setReadTimeout(Duration.ofSeconds(10))
-//        // Optional: add interceptors, error handler, custom message converters...
-//        // .additionalInterceptors(new LoggingInterceptor())
-//        // .errorHandler(new CustomResponseErrorHandler())
-//        .build();
+        this.mobyDexRdfApi = appState.getMobyDexRdfApi();
 
-//        ProjectDao projectDao = new ProjectDao(restTemplate);
-//        ComputationDao computationDao = new ComputationDao(restTemplate);
+        // MobyDexRdfApi mobyDexRdfApi = MobyDexRdfApi.get(); // TODO Inject
 
         projectSelector = new ProjectComboBox("Project", projectDao);
         computationSelector = new ComputationComboBox("Computation", computationDao);
@@ -104,11 +103,16 @@ public class ProjectSelectorView
             computationStatusBox.setText("Cached cells: " + count);
         });
 
+        loadProjectBtn.addThemeVariants(ButtonVariant.PRIMARY, ButtonVariant.SUCCESS);
         loadProjectBtn.addClickListener(ev -> {
+            Long projectId = projectSelectionState.getProjectId();
+            Long computationId = projectSelectionState.getComputationId();
+
+            appState.selectProject(projectId);
+            appState.selectComputation(computationId);
+
             UI.getCurrent().navigate(ReachabilityView.class);
         });
-
-        loadProjectBtn.addThemeVariants(ButtonVariant.PRIMARY, ButtonVariant.SUCCESS);
 
         add(projectSelector);
         add(projectStatusBox);
