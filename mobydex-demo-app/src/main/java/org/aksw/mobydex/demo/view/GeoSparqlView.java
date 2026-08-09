@@ -114,16 +114,6 @@ public class GeoSparqlView
             LIMIT 10
             """);
 
-        MobyDexRdfApi mobyDexRdfApi = appState.getMobyDexRdfApi();
-        appState.selectedProject()
-            .subscribeOn(Schedulers.io())
-            .subscribe(projectId -> {
-                Project project = mobyDexRdfApi.loadProject(projectId);
-                Geometry unionGeom = MobyDexRdfApi.getUnionGeom(project);
-                setProjectEnvelope(unionGeom);
-                // convertGeometryLiteral
-            });
-
         ComboBox<Resource> comboBox = new ComboBox<>();
         comboBox.setLabel("Examples");
         comboBox.setItems(List.of(r0, r1, r2));
@@ -154,6 +144,16 @@ public class GeoSparqlView
         browser = new GeoSparqlBrowser(qef, substitutionTransform);
 
         add(browser);
+
+        MobyDexRdfApi mobyDexRdfApi = appState.getMobyDexRdfApi();
+        browser.getMapReady().andThen(appState.selectedProject())
+            .subscribeOn(Schedulers.io())
+            .subscribe(projectId -> {
+                Project project = mobyDexRdfApi.loadProject(projectId);
+                Geometry unionGeom = MobyDexRdfApi.getUnionGeom(project);
+                setProjectEnvelope(unionGeom);
+                // convertGeometryLiteral
+            });
 
         // Add the project grid preview
 
