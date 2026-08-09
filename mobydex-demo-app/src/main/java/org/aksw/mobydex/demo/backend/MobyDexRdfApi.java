@@ -197,11 +197,11 @@ public class MobyDexRdfApi {
 
 
     public long getComputedCells(long projectId, long computationId) {
-        List<String> computationKey = getComputationKey(projectId, computationId).buildList();
+        List<String> computationKey = getCellsKey(projectId, computationId).buildList();
                 // .add("cell" + originCellId + ".ttl")
 
         Path path = PathUtils.resolve(computationCache.getCacheBasePath(), computationKey);
-        long result = FileSets.countFlat(path, "cell[0-9][0-9]*.ttl");
+        long result = FileSets.countFlat(path, "cell[0-9][0-9]*.data.json.bz2");
         return result;
     }
 

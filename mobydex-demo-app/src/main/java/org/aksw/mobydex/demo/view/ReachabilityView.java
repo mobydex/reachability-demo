@@ -55,6 +55,7 @@ import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
 import org.aksw.mobydex.demo.CellStyles;
 import org.aksw.mobydex.demo.MainLayout;
 import org.aksw.mobydex.demo.appstate.AppState;
+import org.aksw.mobydex.demo.appstate.LoadingState;
 import org.aksw.mobydex.demo.backend.FileCache;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApiRaw;
@@ -341,7 +342,8 @@ public class ReachabilityView extends VerticalLayout
         Button loadGridBtn = new Button("LoadGrid");
         add(loadGridBtn);
         loadGridBtn.addClickListener(ev -> {
-            loadProjectGrid();
+            Long projectId = appState.selectedProject().getValue();
+            loadProjectGrid(projectId);
             refreshStats();
         });
         controlBar.add(loadGridBtn);
@@ -769,9 +771,9 @@ public class ReachabilityView extends VerticalLayout
 
     }
 
-    public void loadProjectGrid() {
+    public void loadProjectGrid(long projectId) {
         // MobyDexRdfApi mobyDexRdfApi = MobyDexRdfApi.get();
-        Project project = mobyDexApi.loadProject(2);
+        Project project = mobyDexApi.loadProject(projectId);
         Model projectModel = project.getModel();
 
         Table bindings = QueryExec.graph(projectModel.getGraph()).query("""
@@ -800,29 +802,30 @@ public class ReachabilityView extends VerticalLayout
 //            map.flyToBounds(bounds, opts);
         }
 
-        FileCache fileCache = mobyDexApi.getProjectCache();
-        Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
-        Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
-        gridComputationLoadTask = new GridComputationLoadTask(fileCache, 1, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
+        if (false) {
+            FileCache fileCache = mobyDexApi.getProjectCache();
+            Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+            Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
+            gridComputationLoadTask = new GridComputationLoadTask(fileCache, 1, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
 
-//        System.out.println("STARTING LOAD");
+    //        System.out.println("STARTING LOAD");
 
-        gridComputationLoadTask.flow()
-            .subscribeOn(Schedulers.io(), false)
-            .buffer(1000, TimeUnit.MILLISECONDS, 50)
-            .filter(buffer -> !buffer.isEmpty())
-            .forEach(gridCells -> {
-                System.out.println(String.format("Received batch of %d cells", gridCells.size()));
-                ui.access(() -> {
-                    for (GridCell cell : gridCells) {
-                        paintGridCell(cell);
-                    }
-                }); //, null);
-            // logger.info("Loaded: " + gridCell.getURI());
-            //enqueGridCell(gridCell);
-            // gridComputationLoadTask.loadCell(computationId, null)
-            });
-
+            gridComputationLoadTask.flow()
+                .subscribeOn(Schedulers.io(), false)
+                .buffer(1000, TimeUnit.MILLISECONDS, 50)
+                .filter(buffer -> !buffer.isEmpty())
+                .forEach(gridCells -> {
+                    System.out.println(String.format("Received batch of %d cells", gridCells.size()));
+                    ui.access(() -> {
+                        for (GridCell cell : gridCells) {
+                            paintGridCell(cell);
+                        }
+                    }); //, null);
+                // logger.info("Loaded: " + gridCell.getURI());
+                //enqueGridCell(gridCell);
+                // gridComputationLoadTask.loadCell(computationId, null)
+                });
+        }
 //        System.out.println("DONE LOAD");
 
         // gridComputationLoadTask.startBackgroundLoading();
@@ -925,7 +928,13 @@ public class ReachabilityView extends VerticalLayout
         super.onAttach(event);
         ui = event.getUI();
         projectStateDisposable = mapReady.andThen(appState.projectState()).subscribe(ev -> {
-            loadProjectGrid();
+
+            switch (ev) {
+                case LoadingState<Long, Project> s -> {
+                    Long projectId = ev.id();
+                    loadProjectGrid(projectId);
+                }
+            }
             // refreshStats();
         });
     }

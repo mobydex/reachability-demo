@@ -90,7 +90,9 @@ public class MobyDexRdfApiRaw {
               BIND(IRI(concat(?projectStr + "#cellGeom" + STR(?cellId))) AS ?cellGeom)
               BIND(norse:json.path(?cellJson, "$.bounds.coordinates") AS ?rawCoords)
               BIND(geof:parsePolyline(?rawCoords) AS ?linestring)
-              BIND(STRDT(REPLACE(STR(?linestring), "LINESTRING", "POLYGON (") + ")", datatype(?linestring)) AS ?polygon)
+              # Note: fixStructure implies a WKT literal
+              BIND(STRDT(norse:geo.wkt.fixStructure(REPLACE(STR(?linestring), "LINESTRING", "POLYGON (") + ")"), datatype(?linestring)) AS ?polygon)
+              # BIND(STRDT(REPLACE(STR(?linestring), "LINESTRING", "POLYGON (") + ")", datatype(?linestring)) AS ?polygon)
 
               # For each routing cell, find the census cells
 
@@ -145,7 +147,8 @@ public class MobyDexRdfApiRaw {
               BIND(IRI(concat(?projectStr + "#cellGeom" + STR(?cellId))) AS ?cellGeom)
               BIND(norse:json.path(?cellJson, "$.bounds.coordinates") AS ?rawCoords)
               BIND(geof:parsePolyline(?rawCoords) AS ?linestring)
-              BIND(STRDT(REPLACE(STR(?linestring), "LINESTRING", "POLYGON (") + ")", datatype(?linestring)) AS ?polygon)
+              # Note: fixStructure implies a WKT literal
+              BIND(STRDT(norse:geo.wkt.fixStructure(REPLACE(STR(?linestring), "LINESTRING", "POLYGON (") + ")"), datatype(?linestring)) AS ?polygon)
 
               # For each routing cell, find the census cells
 
