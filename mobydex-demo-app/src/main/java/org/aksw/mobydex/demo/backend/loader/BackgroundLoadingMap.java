@@ -1,103 +1,106 @@
 package org.aksw.mobydex.demo.backend.loader;
 
-import java.io.Closeable;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import com.github.benmanes.caffeine.cache.AsyncCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 import org.aksw.mobydex.demo.backend.loader.PriorityExecutor.PrioritizedFutureTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import io.reactivex.rxjava3.core.BackpressureStrategy;
-import io.reactivex.rxjava3.core.Emitter;
 import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.processors.FlowableProcessor;
+import io.reactivex.rxjava3.processors.ReplayProcessor;
 
 // TODO: Instead of keyIterator, a keySet could be used.
 //   Usually the items for lazy loading is not that large, that the convenience of
 //   .keySet().size() and .keySet().contains() could be provided.
 public class BackgroundLoadingMap<K, V>
-    implements Closeable
+    implements AutoCloseable
 {
+    private static final Logger logger = LoggerFactory.getLogger(BackgroundLoadingMap.class);
+
     private static final int PRIO_BACKGROUND = 0;
     private static final int PRIO_FOREGROUND = 1;
 
-    private Iterator<K> keyIterator;
+    // private Iterator<K> keyIterator;
+    private Set<K> keySet;
     private Function<K, V> loader;
-
     private AsyncCache<K, V> cache;
 
-    private AtomicLong counter = new AtomicLong(1);
+    private int nThreads;
+
+    private final ReentrantLock activityLock = new ReentrantLock();
+    private final Condition hasSubscribers = activityLock.newCondition();
+
+    private int subscriberCount = 0;
+    private boolean closed = false;
+    private final Semaphore backgroundSlots;
+
+    private final int maxBackgroundTasks;
     private CompletableFuture<Boolean> onComplete = new CompletableFuture<>();
 
-    private int nThreads;
-    private PriorityExecutor<K> priorityExecutor;
+    private final PriorityExecutor<K> priorityExecutor;
 
-    private Object lock = new Object();
     private Thread loaderThread = null;
 
-    private Flowable<K> flowable;
+    private final FlowableProcessor<K> updateProcessor = ReplayProcessor.<K>create().toSerialized();
 
-//    private volatile boolean isPaused = false;
-//    private Lock pauseLock = new ReentrantLock();
-//    private Condition unpauseCondition = pauseLock.newCondition();
+    private final Flowable<K> updates;
+    private final Flowable<K> flowable;
 
-    // TODO Ideally we'd have a producer / consumer architecture with a shared blocking queue.
-    //      So the keyIterator would be replaced with a queue and a poison pill.
-    public BackgroundLoadingMap(int nThreads, Iterator<K> keyIterator, Function<K, V> loader) {
+    public BackgroundLoadingMap(int nThreads, Set<K> keySet, Function<K, V> loader) {
         super();
         this.nThreads = nThreads;
-        this.keyIterator = keyIterator;
+        this.keySet = keySet;
         this.loader = loader;
         this.priorityExecutor = new PriorityExecutor<>(nThreads);
+        this.maxBackgroundTasks = nThreads * 2;
+        this.backgroundSlots = new Semaphore(maxBackgroundTasks);
         this.cache = Caffeine.newBuilder().executor(priorityExecutor.getExecutor()).buildAsync();
 
-        this.flowable = Flowable.<K>create(emitter -> {
-                // emitter.setCancellable(null);
-                runInternal(emitter);
-            }, BackpressureStrategy.BUFFER)
-                .replay().autoConnect();
+        this.updates = Flowable.defer(() -> {
+            if (!addSubscriber()) {
+                return Flowable.error(
+                        new IllegalStateException("BackgroundLoadingMap is closed"));
+            }
+
+            return updateProcessor
+                    .hide()
+                    .doFinally(this::removeSubscriber);
+        });
+
+        this.flowable = Flowable.defer(() -> {
+            if (!addSubscriber()) {
+                return Flowable.error(
+                        new IllegalStateException("BackgroundLoadingMap is closed"));
+            }
+
+            return updates.doFinally(this::removeSubscriber);
+        });
+    }
+
+    public int getThreadCount() {
+        return nThreads;
     }
 
     public AsyncCache<K, V> getCache() {
         return cache;
     }
 
-//    public void startLoading() {
-//        synchronized (lock) {
-//            if (loaderThread == null) {
-//                loaderThread = new Thread(this::runInternal);
-//                loaderThread.start();
-//            }
-//        }
-//    }
-
-//
-//    public void pauseLoading() {
-//        synchronized (lock) {
-//            if (loaderThread != null) {
-//                loaderThread.interrupt();
-//                try {
-//                    loaderThread.join();
-//                } catch (InterruptedException e) {
-//                    throw new RuntimeException(e);
-//                } finally {
-//                    loaderThread = null;
-//                }
-//            }
-//        }
-//    }
-//
-//    public void stopLoading() {
-//        pauseLoading();
-//    }
-
     public CompletableFuture<V> get(K key) {
         int prio = PRIO_FOREGROUND;
+        // If the key is already scheduled then update its priority
         priorityExecutor.updatePriority(key, prio);
         return submit(key, prio);
     }
@@ -121,49 +124,129 @@ public class BackgroundLoadingMap<K, V>
         return result;
     }
 
-    public CompletableFuture<Boolean> onComplete() {
-        return onComplete();
+    public CompletionStage<Boolean> onComplete() {
+        return onComplete;
     }
 
     public boolean isDone() {
         return onComplete.isDone();
     }
 
-    protected void runInternal(Emitter<K> emitter) {
-        int i = 0;
-        while (keyIterator.hasNext()) {
-            if (Thread.interrupted()) {
-                return;
+    private boolean addSubscriber() {
+        activityLock.lock();
+        try {
+            if (closed) {
+                return false;
             }
 
-            K item = keyIterator.next();
-            counter.incrementAndGet();
-            CompletableFuture<V> completableFuture = submit(item, PRIO_BACKGROUND);
-            completableFuture.whenComplete((v, error) -> {
-                if (error != null) {
-                    emitter.onError(error);
-                } else {
-                    emitter.onNext(item);
-                }
-                decrementCounter(emitter);
-            });
+            ++subscriberCount;
+
+            if (loaderThread == null) {
+                loaderThread = new Thread(this::runBackgroundLoader, "background-loading-map");
+                loaderThread.start();
+            }
+
+            hasSubscribers.signalAll();
+            return true;
+        } finally {
+            activityLock.unlock();
         }
-        decrementCounter(emitter);
     }
 
-    protected void decrementCounter(Emitter<K> emitter) {
-        long count = counter.decrementAndGet();
-        if (count == 0) {
+    private void removeSubscriber() {
+        activityLock.lock();
+        try {
+            --subscriberCount;
+        } finally {
+            activityLock.unlock();
+        }
+    }
+
+    /** Block until there is a subscriber. */
+    private boolean awaitSubscriber() throws InterruptedException {
+        activityLock.lock();
+        try {
+            while (!closed && subscriberCount == 0) {
+                hasSubscribers.await();
+            }
+
+            return !closed;
+        } finally {
+            activityLock.unlock();
+        }
+    }
+
+    private void runBackgroundLoader() {
+        Iterator<K> it = keySet.iterator();
+
+        try {
+            while (it.hasNext()) {
+                if (!awaitSubscriber()) {
+                    return;
+                }
+
+                backgroundSlots.acquire();
+
+                if (!hasSubscribers()) {
+                    backgroundSlots.release();
+                    continue;
+                }
+
+                K key = it.next();
+
+                CompletableFuture<V> future =
+                        submit(key, PRIO_BACKGROUND);
+
+                future.whenComplete((value, error) -> {
+                    try {
+                        if (error != null) {
+                            handleLoadFailure(key, error);
+                        } else {
+                            updateProcessor.onNext(key);
+                        }
+                    } finally {
+                        backgroundSlots.release();
+                    }
+                });
+            }
+
+            // Wait until every submitted background job has finished.
+            backgroundSlots.acquire(maxBackgroundTasks);
+            backgroundSlots.release(maxBackgroundTasks);
+
+            updateProcessor.onComplete();
             onComplete.complete(Boolean.TRUE);
-            emitter.onComplete();
-            shutdown();
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+
+            if (!closed) {
+                Throwable error =
+                        new RuntimeException("Background loader interrupted", e);
+
+                updateProcessor.onError(error);
+                onComplete.completeExceptionally(error);
+            }
+        }
+    }
+
+    private void handleLoadFailure(K key, Throwable error) {
+        logger.warn("Failed to load " + key + ": ", error);
+    }
+
+    private boolean hasSubscribers() {
+        activityLock.lock();
+        try {
+            return subscriberCount > 0 && !closed;
+        } finally {
+            activityLock.unlock();
         }
     }
 
     protected void shutdown() {
         priorityExecutor.getExecutor().shutdown();
         try {
-            priorityExecutor.getExecutor().awaitTermination(10, TimeUnit.SECONDS);
+            priorityExecutor.getExecutor().awaitTermination(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -171,11 +254,26 @@ public class BackgroundLoadingMap<K, V>
 
     @Override
     public void close() {
-        // stopLoading();
-        shutdown();
+        activityLock.lock();
+        try {
+            if (closed) {
+                return;
+            }
+
+            closed = true;
+            hasSubscribers.signalAll();
+        } finally {
+            activityLock.unlock();
+        }
+
+        if (loaderThread != null) {
+            loaderThread.interrupt();
+        }
+
+        priorityExecutor.getExecutor().shutdownNow();
     }
 
     public Flowable<K> flow() {
-        return flowable;
+        return updates;
     }
 }

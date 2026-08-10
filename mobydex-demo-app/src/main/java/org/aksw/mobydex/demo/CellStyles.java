@@ -12,11 +12,11 @@ public class CellStyles {
         }
 
         public static LPolylineOptions green() {
-            return blue(new LPolylineOptions());
+            return green(new LPolylineOptions());
         }
 
         public static LPolylineOptions red() {
-            return blue(new LPolylineOptions());
+            return red(new LPolylineOptions());
         }
 
         public static LPolylineOptions grey(LPolylineOptions options) {

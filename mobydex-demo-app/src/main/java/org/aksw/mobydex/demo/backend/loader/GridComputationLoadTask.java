@@ -55,7 +55,7 @@ public class GridComputationLoadTask
         this.cellNodeToRes = gridCells.stream()
                 .collect(Collectors.toMap(GridCell::asNode, x -> x));
 
-        this.map = new BackgroundLoadingMap<>(nThreads, cellNodeToId.keySet().iterator(), cellNode -> {
+        this.map = new BackgroundLoadingMap<>(nThreads, cellNodeToId.keySet(), cellNode -> {
             // Node cellNode = gridCell.asNode();
             int cellId = cellNodeToId.get(cellNode);
             return fetchCell(cellId);

@@ -26,17 +26,25 @@ import org.aksw.jena_sparql_api.vaadin.util.GridWrapper;
 import org.aksw.jena_sparql_api.vaadin.util.GridWrapperBase;
 import org.aksw.jena_sparql_api.vaadin.util.VaadinSparqlUtils;
 import org.aksw.jenax.arq.util.query.QueryTransform;
+import org.aksw.jenax.arq.util.syntax.QueryUtils;
 import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
 import org.aksw.jenax.stmt.util.QueryParseExceptionUtils;
 import org.aksw.jenax.vaadin.component.grid.sparql.GridSparqlBinding;
+import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
 import org.aksw.vaadin.yasqe.Yasqe;
 import org.aksw.vaadin.yasqe.YasqeConfig;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.jena.atlas.iterator.Iter;
 import org.apache.jena.query.Query;
+import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.QueryParseException;
+import org.apache.jena.sparql.algebra.Table;
+import org.apache.jena.sparql.algebra.TableFactory;
+import org.apache.jena.sparql.algebra.table.TableBuilder;
 import org.apache.jena.sparql.core.Var;
 import org.apache.jena.sparql.engine.binding.Binding;
+import org.apache.jena.sparql.exec.RowSet;
 
 import io.reactivex.rxjava3.subjects.BehaviorSubject;
 import io.reactivex.rxjava3.subjects.CompletableSubject;
@@ -94,7 +102,7 @@ public class GeoSparqlBrowser extends VerticalLayout {
 //    protected TileLayer darkLayer = new TileLayer("http://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png");
 
     // protected LayerGroup connectionGroup = new FeatureGroup();
-    protected LLayerGroup connectionGroup;
+    protected LLayerGroup bindingLayer;
 
     private String ID;
 
@@ -224,38 +232,12 @@ public class GeoSparqlBrowser extends VerticalLayout {
             }
         };
 
-        selectAll.addValueChangeListener(ev -> {
-            // selection.setAllSelected(ev.getValue());
-            // reseltS.getDataProvider().refreshAll();
-            // updateMapSelection();
-        });
-
         yasqe.addQueryButtonListener(ev -> {
-            String queryStr = ev.getValue();
-            Query query;
-            try {
-                query = QueryFactory.create(queryStr);
-            } catch (Exception e) {
-                String msg = ExceptionUtils.getRootCauseMessage(e);
-
-                if (e instanceof QueryParseException) {
-                    QueryParseException qpe = (QueryParseException)e;
-                    int[] lineAndCol = QueryParseExceptionUtils.parseLineAndCol(qpe);
-                    if (lineAndCol != null) {
-                        // TODO The Vaadin AceEditor wrapper does not seem to support annotations
-                        // Markers do not seem to be a replacement
-                        // AceMarker marker = new AceMarker(lineAndCol[0] - 1, lineAndCol[1] - 1, lineAndCol[0], 0, AceMarkerColor.red);
-                        // textArea.addMarker(marker);
-                    }
-                }
-
-                Notification n = new Notification(msg, 10000);
-                n.addThemeVariants(NotificationVariant.LUMO_ERROR);
-                n.open();
-                return;
+            Query finalQuery = getEffectiveQuery(ev.getValue());
+            if (finalQuery == null) {
+                throw new RuntimeException("Null query - string value: " + ev.getValue());
             }
 
-            Query finalQuery = toEffectiveQuery(query);
             GridWrapper<Binding> wrappedGrid = GridWrapperBase.wrap(resultSetGrid);
             VaadinSparqlUtils.setQueryForGridBinding(wrappedGrid, resultSetGrid.getHeaderRow(), qef, finalQuery, null, columnFactory);
             VaadinSparqlUtils.configureGridFilter(wrappedGrid, resultSetGrid.getFilterRow(), finalQuery.getProjectVars(),
@@ -264,6 +246,14 @@ public class GeoSparqlBrowser extends VerticalLayout {
             resultSetGrid.getDataCommunicator().enablePushUpdates(executor);
             resultSetGrid.getLazyDataView().setItemCountEstimate(1000);
             resultSetGrid.getLazyDataView().setItemCountEstimateIncrease(1000);
+
+            // ResultSetMapRendererL.createGridListener(mapContainer.getlMap(), connectionGroup;
+
+            bindingLayer.clearLayers();
+            Table selectionTable = getSelection();
+            List<Binding> bindings = Iter.toList(selectionTable.rows());
+            bindingLayer.clearLayers();
+            ResultSetMapRendererL.addAndFly(mapContainer.getlMap(), bindingLayer, bindings);
 
             // Currently needed to reflect the changes by VaadinSparqlUtils
             // resultSetGrid.updateDataProviderListenerRegistration();
@@ -287,23 +277,25 @@ public class GeoSparqlBrowser extends VerticalLayout {
         mapContainer.setSizeUndefined();
         mapContainer.setWidthFull();
 
-        connectionGroup = new LLayerGroup(reg);
-        mapContainer.getlMap().addLayer(connectionGroup);
+        bindingLayer = new LLayerGroup(reg);
+        mapContainer.getlMap().addLayer(bindingLayer);
 
         // Grid<Binding> resultSetGrid = new Grid<>();
         resultSetGrid = new GridSparqlBinding();
+        resultSetGrid.setAllRowsVisible(false);
         resultSetGrid.setMultiSort(true);
         // resultSetGrid.setSelectionMode(SelectionMode.MULTI);
         // resultSetGrid.getSelectionModel().addSelectionListener(ResultSetMapRendererL.createGridListener(mapContainer.getlMap(), connectionGroup));
         resultSetGrid.setPageSize(100);
+        resultSetGrid.setEmptyStateText("No data to display");
+        resultSetGrid.setSizeFull();
+        resultSetGrid.setHeight("500px");
 
 
         // GridMultiSelectionModel<Binding> selectionModel = (GridMultiSelectionModel<Binding>)resultSetGrid.getSelectionModel();
         // selectionModel.setSelectAllCheckboxVisibility(SelectAllCheckboxVisibility.VISIBLE);
         // selectionModel.addSelectionListener(ResultSetMapRendererL.createGridListener(mapContainer.getlMap(), connectionGroup));
 
-        resultSetGrid.setEmptyStateText("No data to display");
-        resultSetGrid.setSizeFull();
 
         inputRow.add(yasqe);
         inputRow.setFlexGrow(1, yasqe);
@@ -321,6 +313,39 @@ public class GeoSparqlBrowser extends VerticalLayout {
         // add(pivotColumnVarsSortable);
 
         add(resultSetGrid);
+    }
+
+    public Query getEffectiveQuery() {
+        String queryStr = yasqe.getValue();
+        return getEffectiveQuery(queryStr);
+    }
+
+    private Query getEffectiveQuery(String queryStr) {
+        Query query;
+        try {
+            query = QueryFactory.create(queryStr);
+        } catch (Exception e) {
+            String msg = ExceptionUtils.getRootCauseMessage(e);
+
+            if (e instanceof QueryParseException) {
+                QueryParseException qpe = (QueryParseException)e;
+                int[] lineAndCol = QueryParseExceptionUtils.parseLineAndCol(qpe);
+                if (lineAndCol != null) {
+                    // TODO The Vaadin AceEditor wrapper does not seem to support annotations
+                    // Markers do not seem to be a replacement
+                    // AceMarker marker = new AceMarker(lineAndCol[0] - 1, lineAndCol[1] - 1, lineAndCol[0], 0, AceMarkerColor.red);
+                    // textArea.addMarker(marker);
+                }
+            }
+
+            Notification n = new Notification(msg, 10000);
+            n.addThemeVariants(NotificationVariant.LUMO_ERROR);
+            n.open();
+            return null;
+        }
+
+        Query finalQuery = toEffectiveQuery(query);
+        return finalQuery;
     }
 
     public CompletableSubject getMapReady() {
@@ -391,6 +416,30 @@ public class GeoSparqlBrowser extends VerticalLayout {
         return mapContainer;
     }
 
+    public Table getSelection() {
+        Table result;
+        if (true) {
+            Query effectiveQuery = getEffectiveQuery();
+            long limit = 1000;
+            Query limitQuery = QueryUtils.restrictToLimit(effectiveQuery, limit + 1, true);
+            TableBuilder tableBuilder = TableFactory.builder();
+            try (QueryExecution qe = qef.createQueryExecution(limitQuery)) {
+                RowSet rs = RowSet.adapt(qe.execSelect());
+                tableBuilder.addVars(rs.getResultVars());
+                Iter.asStream(rs).limit(limit).forEach(tableBuilder::addRow);
+                result = tableBuilder.build();
+                if (rs.hasNext()) {
+                    Notification n = new Notification(String.format("Selection cut off after %d items", limit), 10000);
+                    n.addThemeVariants(NotificationVariant.WARNING);
+                    n.open();
+                }
+            }
+        } else {
+            System.out.println("Subset selected");
+            result = null;
+        }
+        return result;
+    }
 
 //    private LeafletMap createConnectionsMap() {
 //        MapOptions options = new DefaultMapOptions();

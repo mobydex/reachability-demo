@@ -68,6 +68,7 @@ import org.aksw.mobydex.demo.domain.GridCell;
 import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
 import org.aksw.mobydex.demo.domain.Project;
 import org.aksw.mobydex.demo.interpolation.Scale;
+import org.aksw.mobydex.demo.util.rxjava.Disposables;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
 import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
@@ -135,6 +136,8 @@ public class ReachabilityView extends VerticalLayout
     protected LComponentManagementRegistry reg = new LDefaultComponentManagementRegistry(this);
     protected JtsToLMapConverter converter;
 
+    protected Button cancelLoadBtn;
+
     protected MapContainer mapContainer;
     protected ChartContainer reachabilityChart = new ChartContainer();
 
@@ -155,6 +158,9 @@ public class ReachabilityView extends VerticalLayout
 
     private final CompletableSubject mapReady = CompletableSubject.create();
 
+
+    private Disposable computationDisposable = null;
+    private Disposable poiSelectionDisposable = null;
 
 //    protected Timer gridUpdateTimer = new Timer();
 //    protected volatile TimerTask gridUpdateTask = null;
@@ -463,6 +469,12 @@ public class ReachabilityView extends VerticalLayout
 //            		.getProperty(Geo.HAS_GEOMETRY_PROP)
 
         });
+
+        cancelLoadBtn = new Button("Cancel load");
+        cancelLoadBtn.addClickListener(ev -> {
+            Disposables.dispose(computationDisposable);
+        });
+        add(cancelLoadBtn);
     }
 
     /**
@@ -802,7 +814,6 @@ public class ReachabilityView extends VerticalLayout
 //            map.flyToBounds(bounds, opts);
         }
 
-        if (false) {
             FileCache fileCache = mobyDexApi.getProjectCache();
             Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
             Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
@@ -810,10 +821,14 @@ public class ReachabilityView extends VerticalLayout
 
     //        System.out.println("STARTING LOAD");
 
-            gridComputationLoadTask.flow()
+            Disposables.dispose(computationDisposable);
+
+            computationDisposable = gridComputationLoadTask.flow()
+                .doOnSubscribe(ev -> ui.access(() -> cancelLoadBtn.setEnabled(true)))
                 .subscribeOn(Schedulers.io(), false)
                 .buffer(1000, TimeUnit.MILLISECONDS, 50)
                 .filter(buffer -> !buffer.isEmpty())
+                .doFinally(() -> { ui.access(() -> cancelLoadBtn.setEnabled(false)); })
                 .forEach(gridCells -> {
                     System.out.println(String.format("Received batch of %d cells", gridCells.size()));
                     ui.access(() -> {
@@ -825,7 +840,6 @@ public class ReachabilityView extends VerticalLayout
                 //enqueGridCell(gridCell);
                 // gridComputationLoadTask.loadCell(computationId, null)
                 });
-        }
 //        System.out.println("DONE LOAD");
 
         // gridComputationLoadTask.startBackgroundLoading();
@@ -937,13 +951,19 @@ public class ReachabilityView extends VerticalLayout
             }
             // refreshStats();
         });
+
+        poiSelectionDisposable = appState.selectedTags().subscribe(this::onPoiSelectionChange);
+    }
+
+    protected void onPoiSelectionChange(Table poiTable) {
     }
 
     @Override
     protected void onDetach(DetachEvent detachEvent) {
-        if (projectStateDisposable != null) {
-            projectStateDisposable.dispose();
-        }
+        Disposables.dispose(projectStateDisposable);
+        Disposables.dispose(poiSelectionDisposable);
+        Disposables.dispose(computationDisposable);
+
         super.onDetach(detachEvent);
     }
 

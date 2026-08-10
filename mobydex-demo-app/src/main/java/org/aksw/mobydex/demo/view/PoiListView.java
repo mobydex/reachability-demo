@@ -1,5 +1,8 @@
 package org.aksw.mobydex.demo.view;
 
+import java.util.Set;
+
+import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.Grid.SelectionMode;
 import com.vaadin.flow.component.grid.GridMultiSelectionModel;
@@ -22,6 +25,7 @@ import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryExecution;
 import org.apache.jena.sparql.algebra.Table;
+import org.apache.jena.sparql.algebra.TableFactory;
 import org.apache.jena.sparql.engine.binding.Binding;
 
 @Route(value = "pois", layout = MainLayout.class)
@@ -30,6 +34,9 @@ public class PoiListView
     extends VerticalLayout
 {
     private static final long serialVersionUID = 1L;
+
+    protected Button applySelectionBtn;
+    // protected Button resetSelectionBtn;
 
     protected Grid<Binding> resultSetGrid;
     protected HeaderRow resultSetGridHeaderRow;
@@ -40,6 +47,17 @@ public class PoiListView
     ) {
 //        ExecutorService executorService = Executors.newCachedThreadPool();
 //        executor = executorService;
+
+        applySelectionBtn = new Button("Apply Selection");
+        applySelectionBtn.addClickListener(ev -> {
+            Set<Binding> selectionSet = resultSetGrid.getSelectedItems();
+            Table selectionTable = TableFactory.builder().addRowsAndVars(selectionSet).build();
+            appState.setSelectedTags(selectionTable);
+//        	DataProvider<Binding, ?> dataProvider = resultSetGrid.getDataProvider();
+//            resultSetGrid.getDataProvider()
+//            	.fetch(new com.vaadin.flow.data.provider.Query<>())
+//            	.toList();
+        });
 
         QueryExecutionFactoryQuery qef = q -> QueryExecution.create().dataset(DatasetFactory.empty()).query(q).build();
 
@@ -55,6 +73,7 @@ public class PoiListView
 
         resultSetGrid.setMultiSort(true);
         resultSetGrid.setPageSize(100);
+        resultSetGrid.setAllRowsVisible(true);
         resultSetGridHeaderRow = resultSetGrid.appendHeaderRow();
         resultSetGridFilterRow = resultSetGrid.appendHeaderRow();
 
