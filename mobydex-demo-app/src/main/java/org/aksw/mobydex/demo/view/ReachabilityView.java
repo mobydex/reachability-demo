@@ -65,6 +65,7 @@ import org.aksw.mobydex.demo.backend.OsmRdfApi;
 import org.aksw.mobydex.demo.backend.OsmRdfApi.ElementTransformInjectNamedElement;
 import org.aksw.mobydex.demo.backend.ProjectDao;
 import org.aksw.mobydex.demo.backend.loader.GridComputationLoadTask;
+import org.aksw.mobydex.demo.component.ColorScaleLegend;
 import org.aksw.mobydex.demo.component.TabSheet;
 import org.aksw.mobydex.demo.domain.GridCell;
 import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
@@ -208,14 +209,14 @@ public class ReachabilityView extends VerticalLayout
         float ratioThreshold = 0.5f;
         float ratio = match / (float)tagSetSize;
 
-        float[] color = Scale.ofFloat(3)
-            .put(0.0f, new float[] {1.0f, 0.0f, 0.0f})
-            .put(0.4f, new float[] {0.9f, 0.7f, 0.1f})
-            .put(0.6f, new float[] {0.0f, 0.5f, 0.0f})
-            .put(0.8f, new float[] {0.0f, 1.0f, 0.0f})
+        double[] color = Scale.of(3)
+            .put(0.0f, new double[] {1.0f, 0.0f, 0.0f})
+            .put(0.4f, new double[] {0.9f, 0.7f, 0.1f})
+            .put(0.6f, new double[] {0.0f, 0.5f, 0.0f})
+            .put(0.8f, new double[] {0.0f, 1.0f, 0.0f})
             .interpolate(ratio);
 
-        String colorStr = toColorHexString(color);
+        String colorStr = ColorScaleLegend.toColorHexString(color);
 
         String cellId = gridCell.getURI();
         LPath<?> cellPath = cellIdToLayer.get(cellId);
@@ -225,28 +226,6 @@ public class ReachabilityView extends VerticalLayout
 
         // CellStyles.purple(style);
         cellPath.setStyle(style);
-    }
-
-    public static String toColorHexString(float[] color) {
-        if (color == null || color.length != 3) {
-            throw new IllegalArgumentException(
-                    "Color must be a 3-component RGB array");
-        }
-
-        int red = Math.round(clamp01(color[0]) * 255.0f);
-        int green = Math.round(clamp01(color[1]) * 255.0f);
-        int blue = Math.round(clamp01(color[2]) * 255.0f);
-
-        return String.format("#%02X%02X%02X", red, green, blue);
-    }
-
-    private static float clamp01(float value) {
-        if (Float.isNaN(value)) {
-            throw new IllegalArgumentException(
-                    "Color components must not be NaN");
-        }
-
-        return Math.max(0.0f, Math.min(1.0f, value));
     }
 
 //    Object myLock = new Object();
@@ -894,7 +873,16 @@ public class ReachabilityView extends VerticalLayout
 
         mapContainer.setSizeFull();
         mapContainer.getlMap().fixInvalidSizeAfterCreation(ID);
-        this.add(mapContainer);
+        add(mapContainer);
+
+        Scale<Float> scale = Scale.<Float>of(3)
+                .put(0.0f, new double[] {1.0f, 0.0f, 0.0f})
+                .put(0.4f, new double[] {0.9f, 0.7f, 0.1f})
+                .put(0.6f, new double[] {0.0f, 0.5f, 0.0f})
+                .put(0.8f, new double[] {0.0f, 1.0f, 0.0f});
+
+        ColorScaleLegend legend = new ColorScaleLegend(scale);
+        add(legend);
 
         LMap map = mapContainer.getlMap();
 
