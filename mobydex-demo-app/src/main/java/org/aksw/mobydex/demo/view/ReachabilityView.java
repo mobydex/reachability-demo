@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
@@ -16,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.primitives.Ints;
 import com.vaadin.flow.component.AttachEvent;
@@ -73,6 +75,7 @@ import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
 import org.aksw.vaadin.jena.geo.leafletflow.ResultSetMapRendererL;
 import org.apache.jena.atlas.iterator.Iter;
+import org.apache.jena.geosparql.implementation.GeometryWrapper;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.query.DatasetFactory;
@@ -83,6 +86,7 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.algebra.Table;
 import org.apache.jena.sparql.algebra.TableFactory;
+import org.apache.jena.sparql.core.Var;
 import org.apache.jena.sparql.engine.binding.Binding;
 import org.apache.jena.sparql.exec.QueryExec;
 import org.apache.jena.sparql.exec.http.QueryExecHTTP;
@@ -814,10 +818,30 @@ public class ReachabilityView extends VerticalLayout
 //            map.flyToBounds(bounds, opts);
         }
 
+        // appState.select
+
+        Long computationId = appState.selectedComputation().getValue();
+
             FileCache fileCache = mobyDexApi.getProjectCache();
             Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
             Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
-            gridComputationLoadTask = new GridComputationLoadTask(fileCache, 1, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
+            int nThreads = 1;
+
+            Set<Binding> geomBindings = appState.selectedGeomBindings().getValue().orElse(null);
+            List<GridCell> cells = new ArrayList<>(project.getCells());
+            if (geomBindings != null) {
+                Set<Geometry> filterGeoms = geomBindings.stream()
+                    .flatMap(ReachabilityView::mapToGeometries)
+                    .map(Entry::getValue)
+                    .collect(Collectors.toSet());
+
+                cells = cells.stream().filter(gridCell ->
+                    MobyDexRdfApi.getCellGeometry(gridCell).anyMatch(cellGeom ->
+                        filterGeoms.stream().anyMatch(filterGeom -> cellGeom.intersects(filterGeom))))
+                    .toList();
+            }
+
+            gridComputationLoadTask = new GridComputationLoadTask(fileCache, nThreads, project, cells, computationId, mobyDexApi, poiTypeHistogramModel, tagsFragment);
 
     //        System.out.println("STARTING LOAD");
 
@@ -843,6 +867,20 @@ public class ReachabilityView extends VerticalLayout
 //        System.out.println("DONE LOAD");
 
         // gridComputationLoadTask.startBackgroundLoading();
+    }
+
+    public static Stream<Entry<Var, Geometry>> mapToGeometries(Binding b) {
+        return Iter.asStream(b.vars()).flatMap(v -> {
+            Node node = b.get(v);
+            Geometry geom;
+            try {
+                geom = GeometryWrapper.extract(node).getParsingGeometry();
+                return Stream.of(Map.entry(v, geom));
+            } catch (Exception e) {
+                // Ignore
+            }
+            return Stream.empty();
+        });
     }
 
     private MapContainer createLMap(CompletableSubject mapReady) {

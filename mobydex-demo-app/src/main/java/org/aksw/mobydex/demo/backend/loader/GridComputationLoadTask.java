@@ -1,6 +1,5 @@
 package org.aksw.mobydex.demo.backend.loader;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -39,7 +38,9 @@ public class GridComputationLoadTask
     private Map<Node, Integer> cellNodeToId;
     private Map<Node, GridCell> cellNodeToRes;
 
-    public GridComputationLoadTask(FileCache fileCache ,int nThreads, Project project, long computationId, MobyDexRdfApi mobyDexApi, Model poiTypeHistogramModel, Fragment2 tagsFragment) {
+    private List<GridCell> gridCells;
+
+    public GridComputationLoadTask(FileCache fileCache, int nThreads, Project project, List<GridCell> gridCells, long computationId, MobyDexRdfApi mobyDexApi, Model poiTypeHistogramModel, Fragment2 tagsFragment) {
         this.fileCache = fileCache;
         this.project = project;
         this.computationId = computationId;
@@ -47,7 +48,8 @@ public class GridComputationLoadTask
         this.poiTypeHistogramModel = poiTypeHistogramModel;
         this.tagsFragment = tagsFragment;
 
-        List<GridCell> gridCells = new ArrayList<>(project.getCells());
+        // List<GridCell> gridCells = new ArrayList<>(project.getCells());
+        this.gridCells = gridCells;
         // List<Node> gridCells = new ArrayList<>(project.getCells());
         this.cellNodeToId = gridCells.stream()
                 .collect(Collectors.toMap(GridCell::asNode, GridCell::getCellId));
@@ -67,7 +69,8 @@ public class GridComputationLoadTask
     }
 
     public long getTotalTasks() {
-        return project.getCells().size();
+        // return project.getCells().size();
+        return gridCells.size();
     }
 
     public long getCompletedTasks() {
@@ -111,10 +114,10 @@ public class GridComputationLoadTask
 /// projectGridCell.get
     }
 
-    public GridComputationLoadTask load(FileCache fileCache, Project project, long computationId, Model poiTypeHistogram, Fragment2 tagsFragment) {
+    public GridComputationLoadTask load(FileCache fileCache, Project project, List<GridCell> gridCells, long computationId, Model poiTypeHistogram, Fragment2 tagsFragment) {
         MobyDexRdfApi mobyDexApi = MobyDexRdfApi.get();
         int nThreads = Runtime.getRuntime().availableProcessors();
-        GridComputationLoadTask task = new GridComputationLoadTask(fileCache, nThreads, project, computationId, mobyDexApi, poiTypeHistogram, tagsFragment);
+        GridComputationLoadTask task = new GridComputationLoadTask(fileCache, nThreads, project, gridCells, computationId, mobyDexApi, poiTypeHistogram, tagsFragment);
         return task;
     }
 

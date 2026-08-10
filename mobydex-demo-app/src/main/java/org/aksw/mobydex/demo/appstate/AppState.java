@@ -1,5 +1,8 @@
 package org.aksw.mobydex.demo.appstate;
 
+import java.util.Optional;
+import java.util.Set;
+
 import com.vaadin.flow.spring.annotation.RouteScope;
 import com.vaadin.flow.spring.annotation.RouteScopeOwner;
 
@@ -7,6 +10,7 @@ import org.aksw.mobydex.demo.MainLayout;
 import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.domain.Project;
 import org.apache.jena.sparql.algebra.Table;
+import org.apache.jena.sparql.engine.binding.Binding;
 
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
@@ -26,8 +30,9 @@ public class AppState {
 
 
     private BehaviorSubject<Table> availableTags = BehaviorSubject.create();
-
     private BehaviorSubject<Table> selectedTags = BehaviorSubject.create();
+
+    private BehaviorSubject<Optional<Set<Binding>>> selectedGeomBindings = BehaviorSubject.create();
 
     public AppState(MobyDexRdfApi mobyDexRdfApi) {
         this.mobyDexRdfApi = mobyDexRdfApi;
@@ -71,7 +76,7 @@ public class AppState {
     }
 
     public BehaviorSubject<Long> selectedComputation() {
-        return selectedProject; //.hide();
+        return selectedComputation; //.hide();
     }
 
     public void setAvailableTags(Table table) {
@@ -88,5 +93,13 @@ public class AppState {
 
     public void setSelectedTags(Table table) {
         selectedTags.onNext(table);
+    }
+
+    public BehaviorSubject<Optional<Set<Binding>>> selectedGeomBindings() {
+        return selectedGeomBindings;
+    }
+
+    public void setSelectedGeomBindings(Optional<Set<Binding>> bindings) {
+        selectedGeomBindings.onNext(bindings);
     }
 }

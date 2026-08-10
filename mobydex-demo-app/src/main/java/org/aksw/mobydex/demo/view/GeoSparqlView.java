@@ -2,7 +2,10 @@ package org.aksw.mobydex.demo.view;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -20,6 +23,7 @@ import org.aksw.mobydex.demo.backend.MobyDexRdfApi;
 import org.aksw.mobydex.demo.component.GeoSparqlBrowser;
 import org.aksw.mobydex.demo.domain.Project;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsToLMapConverter;
+import org.apache.jena.atlas.iterator.Iter;
 import org.apache.jena.geosparql.implementation.GeometryWrapper;
 import org.apache.jena.geosparql.implementation.datatype.WKTDatatype;
 import org.apache.jena.graph.Node;
@@ -29,7 +33,9 @@ import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.sparql.algebra.Table;
 import org.apache.jena.sparql.core.Var;
+import org.apache.jena.sparql.engine.binding.Binding;
 import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 import org.apache.jena.sparql.syntax.syntaxtransform.QueryTransformOps;
 import org.apache.jena.vocabulary.RDFS;
@@ -53,6 +59,9 @@ public class GeoSparqlView
 {
     private static final long serialVersionUID = 1L;
 
+    private Button clearSelectionBtn;
+    private Button applySelectionBtn;
+
     private GeoSparqlBrowser browser;
 
     private MapContainer mapContainer;
@@ -65,7 +74,7 @@ public class GeoSparqlView
     private LLatLngBounds bounds;
     private Geometry projectGeometry;
 
-
+    private UI ui;
 
     public static final Property queryString = ResourceFactory.createProperty("http://www.example.org/queryString");
 
@@ -138,15 +147,23 @@ public class GeoSparqlView
         recenterMap.addClickListener(ev -> {
             recenterMap();
         });
+        add(recenterMap);
 
-        Button applySelection = new Button("Apply Selection");
-        applySelection.addClickListener(ev -> {
-            // TODO Reject the selection if too many geometries selected.
+        applySelectionBtn = new Button("Apply Selection");
+        applySelectionBtn.addClickListener(ev -> {
+            Table table = browser.getSelection();
+            Set<Binding> geomBindings = Iter.toSet(table.rows());
+            appState.setSelectedGeomBindings(Optional.of(geomBindings));
+            ui.navigate(ReachabilityView.class);
+        });
+        add(applySelectionBtn);
 
-            UI.getCurrent().navigate(ReachabilityView.class);
+        clearSelectionBtn = new Button("Clear Selection");
+        clearSelectionBtn.addClickListener(ev -> {
+            appState.setSelectedGeomBindings(Optional.empty());
+            ui.navigate(ReachabilityView.class);
         });
 
-        add(recenterMap);
 
         // comboBox.setRenderer(r);
 
@@ -210,5 +227,11 @@ public class GeoSparqlView
         if (bounds != null) {
             lMap.flyToBounds(bounds, new LMapZoomPanOptions().withDuration(0.5));
         }
+    }
+
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        this.ui = UI.getCurrent();
     }
 }

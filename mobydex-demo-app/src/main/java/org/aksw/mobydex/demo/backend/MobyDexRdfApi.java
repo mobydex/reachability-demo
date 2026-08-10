@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -312,14 +313,19 @@ public class MobyDexRdfApi {
 //        return result;
     }
 
-    public static Geometry getUnionGeom(Project project) {
-        Geometry result = project.getCells().stream()
+    public static Stream<Geometry> getCellGeometry(GridCell cell) {
+        return Stream.of(cell)
                 .map(GridCell::getHasGeometry)
                 .flatMap(Collection::stream)
                 .map(org.aksw.jenax.model.geosparql.Geometry::getAsGeometryWrapper)
                 .filter(Objects::nonNull)
                 .map(GeometryWrapper::getParsingGeometry)
-                .filter(Objects::nonNull)
+                .filter(Objects::nonNull);
+    }
+
+    public static Geometry getUnionGeom(Project project) {
+        Geometry result = project.getCells().stream()
+                .flatMap(MobyDexRdfApi::getCellGeometry)
                 .collect(JtsUtils.union());
             return result;
     }

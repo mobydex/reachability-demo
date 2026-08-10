@@ -2,6 +2,8 @@ package org.aksw.mobydex.demo.view;
 
 import java.util.Set;
 
+import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.Grid.SelectionMode;
@@ -42,6 +44,8 @@ public class PoiListView
     protected HeaderRow resultSetGridHeaderRow;
     protected HeaderRow resultSetGridFilterRow;
 
+    protected UI ui;
+
     public PoiListView(
         @RouteScopeOwner(MainLayout.class) AppState appState
     ) {
@@ -53,11 +57,16 @@ public class PoiListView
             Set<Binding> selectionSet = resultSetGrid.getSelectedItems();
             Table selectionTable = TableFactory.builder().addRowsAndVars(selectionSet).build();
             appState.setSelectedTags(selectionTable);
+
+            ui.navigate(ReachabilityView.class);
+
 //        	DataProvider<Binding, ?> dataProvider = resultSetGrid.getDataProvider();
 //            resultSetGrid.getDataProvider()
 //            	.fetch(new com.vaadin.flow.data.provider.Query<>())
 //            	.toList();
         });
+
+        add(applySelectionBtn);
 
         QueryExecutionFactoryQuery qef = q -> QueryExecution.create().dataset(DatasetFactory.empty()).query(q).build();
 
@@ -92,5 +101,11 @@ public class PoiListView
         // resultSetGrid.getDataProvider().refreshAll();
 
         add(resultSetGrid);
+    }
+
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        this.ui = UI.getCurrent();
     }
 }

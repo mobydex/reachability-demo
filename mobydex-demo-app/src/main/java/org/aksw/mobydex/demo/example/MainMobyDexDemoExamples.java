@@ -1,5 +1,7 @@
 package org.aksw.mobydex.demo.example;
 
+import java.util.ArrayList;
+
 import org.aksw.jenax.sparql.fragment.api.Fragment;
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
 import org.aksw.mobydex.demo.ConfigMobyDexDemo;
@@ -71,7 +73,7 @@ public class MainMobyDexDemoExamples {
         //MobyDexRdfApi mobyDexApi, Model poiTypeHistogramModel, Fragment2 tagsFragment
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
         Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
-        GridComputationLoadTask task = new GridComputationLoadTask(fileCache, 2, project, 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
+        GridComputationLoadTask task = new GridComputationLoadTask(fileCache, 2, project, new ArrayList<>(project.getCells()), 70, mobyDexApi, poiTypeHistogramModel, tagsFragment);
 
         task.flow().forEach(table -> {
             System.out.println("GOT: " + table);
