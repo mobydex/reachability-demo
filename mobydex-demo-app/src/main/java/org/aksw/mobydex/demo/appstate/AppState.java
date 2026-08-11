@@ -87,7 +87,7 @@ public class AppState {
         return availableTags;
     }
 
-    public Observable<Table> selectedTags() {
+    public BehaviorSubject<Table> selectedTags() {
         return selectedTags;
     }
 

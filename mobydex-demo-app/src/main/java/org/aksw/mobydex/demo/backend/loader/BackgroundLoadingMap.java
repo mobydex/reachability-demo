@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.processors.FlowableProcessor;
 import io.reactivex.rxjava3.processors.ReplayProcessor;
 
@@ -56,7 +57,9 @@ public class BackgroundLoadingMap<K, V>
 
     private Thread loaderThread = null;
 
-    private final FlowableProcessor<Entry<K, V>> updateProcessor = ReplayProcessor.<Entry<K, V>>create().toSerialized();
+    private final FlowableProcessor<K> updateProcessor = ReplayProcessor.<K>create().toSerialized();
+    // private final FlowableProcessor<Entry<K, V>> updateProcessor = PublishProcessor.<Entry<K, V>>create().toSerialized();
+    // private final FlowableProcessor<K> updateProcessor = PublishProcessor.<K>create().toSerialized();
 
     private final Flowable<Entry<K, V>> updates;
     private final Flowable<Entry<K, V>> flowable;
@@ -81,6 +84,9 @@ public class BackgroundLoadingMap<K, V>
 
             return updateProcessor
                     .hide()
+                    //.map(this::get)
+                    .flatMapSingle(key -> Single.fromCompletionStage(resolve(key))
+                        .map(value -> Map.entry(key, value)))
                     .doFinally(this::removeSubscriber);
         });
 
@@ -107,6 +113,11 @@ public class BackgroundLoadingMap<K, V>
         // If the key is already scheduled then update its priority
         priorityExecutor.updatePriority(key, prio);
         return submit(key, prio);
+    }
+
+    /** Low-priority get. */
+    protected CompletableFuture<V> resolve(K key) {
+        return submit(key, PRIO_BACKGROUND);
     }
 
     public V getIfPresent(K key) {
@@ -206,7 +217,8 @@ public class BackgroundLoadingMap<K, V>
                         if (error != null) {
                             handleLoadFailure(key, error);
                         } else {
-                            updateProcessor.onNext(Map.entry(key, value));
+                            // updateProcessor.onNext(Map.entry(key, value));
+                            updateProcessor.onNext(key);
                         }
                     } finally {
                         backgroundSlots.release();

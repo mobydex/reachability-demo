@@ -188,11 +188,12 @@ public class ReachabilityView extends VerticalLayout
 
     protected void paintGridCell(GridCell gridCell, Table table) {
         // get the tags
-        Set<Binding> tagSet = new HashSet<>();
-        Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toTable().rows().forEachRemaining(tagSet::add);
-        int tagSetSize = tagSet.size();
+        Set<Binding> selectedPoiTagSet = new HashSet<>();
+        Table selectedPoiTagTable = appState.selectedTags().getValue(); // OsmRdfApi.getPoiCategories()
 
-        // FIXME: Cell may have been unloaded when we come here!
+        Fragment.of(selectedPoiTagTable).project(0, 1).toTable().rows().forEachRemaining(selectedPoiTagSet::add);
+        int selectedPoiTagSetSize = selectedPoiTagSet.size();
+
         // So we really need to fire (key, value) as an event!
         if (table == null) {
             table = gridComputationLoadTask.getMap().getIfPresent(gridCell.asNode());
@@ -206,10 +207,13 @@ public class ReachabilityView extends VerticalLayout
 
         long match = 0;
         for (Binding b : (Iterable<Binding>)() -> finalTable.rows()) {
-//            Binding tag = BindingUtils.project(b, "co", "cop");
-//            if (tagSet.contains(tag)) {
-//                ++match;
-//            }
+            // Skip tags that are not selected
+            Binding tag = BindingUtils.project(b, "co", "cp");
+            tag = BindingUtils.renameKeyNames(tag, Map.of("cp", "key", "co", "value"));
+            if (!selectedPoiTagSet.contains(tag)) {
+                // ++match;
+                continue;
+            }
 
             Number duration = BindingUtils.getNumberNullable(b, "duration");
             if (duration != null && duration.floatValue() < durationThreshold) {
@@ -218,13 +222,13 @@ public class ReachabilityView extends VerticalLayout
         }
 
         float ratioThreshold = 0.5f;
-        float ratio = match / (float)tagSetSize;
+        float ratio = selectedPoiTagSetSize == 0 ? .0f : match / (float)selectedPoiTagSetSize;
 
         double[] color = Scale.of(3)
-            .put(0.0f, new double[] {1.0f, 0.0f, 0.0f})
-            .put(0.4f, new double[] {0.9f, 0.7f, 0.1f})
-            .put(0.6f, new double[] {0.0f, 0.5f, 0.0f})
-            .put(0.8f, new double[] {0.0f, 1.0f, 0.0f})
+            .put(0.0f,  new double[] {1.0f, 0.0f, 0.0f})
+            .put(0.25f, new double[] {0.9f, 0.7f, 0.1f})
+            .put(0.75f, new double[] {0.0f, 0.5f, 0.0f})
+            .put(1.0f,  new double[] {0.0f, 1.0f, 0.0f})
             .interpolate(ratio);
 
         String colorStr = ColorScaleLegend.toColorHexString(color);
@@ -642,8 +646,11 @@ public class ReachabilityView extends VerticalLayout
         // Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
         Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
 
+
+        Fragment2 selectedTagsFragment = Fragment.of(appState.selectedTags().getValue()).project(0, 1).toFragment2();
+
         // Node durationProperty = NodeFactory.createURI("http://www.example.org/durationMin");
-        Table poiTypeToCells = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, tagsFragment, 1,
+        Table poiTypeToCells = OsmRdfApi.createQueryPoiTypeInRange(originCell, poiTypeHistogramModel, selectedTagsFragment, 1,
                 MobyDexRdfApiRaw.durationProperty);
         return poiTypeToCells;
     }
@@ -704,7 +711,11 @@ public class ReachabilityView extends VerticalLayout
               }
             } ORDER BY ?co ?cp
             """);
-        Element tagsElt = tagsFragment.rename("cp", "co").getElement();
+
+        Fragment2 selectedTagsFragment = Fragment.of(appState.selectedTags().getValue()).project(0, 1).toFragment2();
+        // Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
+
+        Element tagsElt = selectedTagsFragment.rename("cp", "co").getElement();
 
         Query query = QueryTransformOps.transform(baseQuery,
             ElementTransformInjectNamedElement.of(Map.of("elt:tags", tagsElt)));

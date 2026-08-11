@@ -11,6 +11,8 @@ import com.vaadin.flow.component.grid.GridMultiSelectionModel;
 import com.vaadin.flow.component.grid.GridMultiSelectionModel.SelectAllCheckboxVisibility;
 import com.vaadin.flow.component.grid.HeaderRow;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.spring.annotation.RouteScopeOwner;
@@ -29,13 +31,18 @@ import org.apache.jena.query.QueryExecution;
 import org.apache.jena.sparql.algebra.Table;
 import org.apache.jena.sparql.algebra.TableFactory;
 import org.apache.jena.sparql.engine.binding.Binding;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Route(value = "pois", layout = MainLayout.class)
 @PageTitle("Poi Types")
 public class PoiListView
     extends VerticalLayout
+    implements BeforeEnterObserver
 {
     private static final long serialVersionUID = 1L;
+
+    private static final Logger logger = LoggerFactory.getLogger(PoiListView.class);
 
     protected Button applySelectionBtn;
     // protected Button resetSelectionBtn;
@@ -44,11 +51,13 @@ public class PoiListView
     protected HeaderRow resultSetGridHeaderRow;
     protected HeaderRow resultSetGridFilterRow;
 
+    protected AppState appState;
     protected UI ui;
 
     public PoiListView(
         @RouteScopeOwner(MainLayout.class) AppState appState
     ) {
+        this.appState = appState;
 //        ExecutorService executorService = Executors.newCachedThreadPool();
 //        executor = executorService;
 
@@ -107,5 +116,32 @@ public class PoiListView
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
         this.ui = UI.getCurrent();
+    }
+
+    void refreshSelection() {
+        Table table = appState.selectedTags().getValue();
+        // GridMultiSelectionModel<?> selectionModel = (GridMultiSelectionModel<?>)resultSetGrid.getSelectionModel();
+        // selectionModel.setSelectAllCheckboxVisibility(SelectAllCheckboxVisibility.VISIBLE);
+        //selectionModel.getSelectedItems();
+
+        table.rows().forEachRemaining(resultSetGrid::select);
+
+        // logger.info("Refreshing selection: " + projectSelectionState);
+//        Long projectId;
+//        if ((projectId = projectSelectionState.getProjectId()) != null) {
+//            Project selectedProject = projectDao.fetchItem(projectId);
+//            projectSelector.setValue(selectedProject);
+//        }
+//
+//        Long computationId;
+//        if ((computationId = projectSelectionState.getComputationId()) != null) {
+//            Computation computation = computationDao.fetchItem(computationId);
+//            computationSelector.setValue(computation);
+//        }
+    }
+
+    @Override
+    public void beforeEnter(BeforeEnterEvent event) {
+        refreshSelection();
     }
 }
