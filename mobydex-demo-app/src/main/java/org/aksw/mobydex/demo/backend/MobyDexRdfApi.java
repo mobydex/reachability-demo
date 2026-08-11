@@ -18,7 +18,6 @@ import java.util.stream.Stream;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.vaadin.frontendtools.internal.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 
 import org.aksw.commons.io.util.PathUtils;
 import org.aksw.jenax.dataaccess.sparql.creator.FileSets;
@@ -30,6 +29,7 @@ import org.aksw.mobydex.demo.domain.MobyDexRdfAccess;
 import org.aksw.mobydex.demo.domain.Project;
 import org.aksw.shellgebra.exec.ListBuilder;
 import org.aksw.vaadin.jena.geo.leafletflow.JtsUtils;
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.jena.atlas.io.IOX;
