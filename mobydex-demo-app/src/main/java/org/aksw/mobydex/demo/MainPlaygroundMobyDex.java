@@ -22,7 +22,7 @@ import org.apache.jena.sparql.graph.GraphFactory;
 public class MainPlaygroundMobyDex {
 
     public static void main(String[] args) throws IOException {
-        MobyDexRdfApi mobyDexApi = new MobyDexRdfApi();
+        MobyDexRdfApi mobyDexApi = MobyDexRdfApi.get();
 
         long projectId = 2;
         long computationId = 70;

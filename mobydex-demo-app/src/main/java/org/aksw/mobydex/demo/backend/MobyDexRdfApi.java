@@ -53,12 +53,15 @@ public class MobyDexRdfApi {
     private FileCache computationCache;
     private FileCache cellCache;
 
-    public MobyDexRdfApi() {
+    protected MobyDexRdfApi(Path cachePath) {
         super();
-        Path cachePath = Path.of(System.getProperty("user.home")).resolve(".cache/mobydex");
         this.projectCache = new FileCache(cachePath);
         this.computationCache = new FileCache(cachePath);
         this.cellCache = new FileCache(cachePath);
+    }
+
+    public static MobyDexRdfApi of(Path cachePath) {
+        return new MobyDexRdfApi(cachePath);
     }
 
     public FileCache getProjectCache() {
@@ -73,8 +76,10 @@ public class MobyDexRdfApi {
         return cellCache;
     }
 
+    @Deprecated
     public static MobyDexRdfApi get() {
-        return new MobyDexRdfApi();
+        Path cachePath = Path.of(System.getProperty("user.home")).resolve(".cache/mobydex");
+        return of(cachePath);
     }
 
     public static ListBuilder<String> getProjectGridKey(long projectId) {

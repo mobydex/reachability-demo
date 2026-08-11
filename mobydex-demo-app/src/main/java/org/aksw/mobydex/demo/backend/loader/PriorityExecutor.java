@@ -1,5 +1,6 @@
 package org.aksw.mobydex.demo.backend.loader;
 
+import java.util.Comparator;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -19,8 +20,27 @@ public final class PriorityExecutor<K> {
 
     // private CompletableFuture<K> completableFuture = new CompletableFuture<>();
 
+    Comparator<Runnable> comparator = (a, b) -> {
+        int result;
+        // Schedule non-PrioritizedFutureTask first - they are likely caffeine maintenance tasks.
+        if (a instanceof PrioritizedFutureTask<?> aa) {
+            if (b instanceof PrioritizedFutureTask<?> bb) {
+                result = aa.compareTo(bb);
+            } else {
+                result = 1;
+            }
+        } else {
+            if (b instanceof PrioritizedFutureTask<?>) {
+                result = -1;
+            } else {
+                result = 0;
+            }
+        }
+        return result;
+    };
+
     public PriorityExecutor(int threads) {
-        this.executor = new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.MILLISECONDS, new PriorityBlockingQueue<>());
+        this.executor = new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.MILLISECONDS, new PriorityBlockingQueue<>(11, comparator));
     }
 
     public ThreadPoolExecutor getExecutor() {

@@ -112,13 +112,13 @@ public class MainMobyDexDemoExamples {
         // int projectId = 2;
         // int projectId = project.getProjectId();
         long computationId = 70;
-        ProjectDao projectDao = new ProjectDao(ConfigMobyDexDemo.newRestTemplate(), ConfigMobyDexDemo.baseUrl);
+        ProjectDao projectDao = new ProjectDao(ConfigMobyDexDemo.newRestTemplate(), "https://mobydex.locoslab.com/controller-service/");
         // long projectId = projectDao.fetchItem(computationId).id();
 
         Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
         Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
 
-        ComputationDao computationDao = new ComputationDao(ConfigMobyDexDemo.newRestTemplate(), ConfigMobyDexDemo.baseUrl);
+        ComputationDao computationDao = new ComputationDao(ConfigMobyDexDemo.newRestTemplate(), "https://mobydex.locoslab.com/controller-service/");
         long projectId = computationDao.getProjectId(computationId);
         System.out.println("Got projectId: " + projectId);
 

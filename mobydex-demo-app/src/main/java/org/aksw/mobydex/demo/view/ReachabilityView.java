@@ -186,15 +186,26 @@ public class ReachabilityView extends VerticalLayout
 //        }
 //    }
 
-    protected void paintGridCell(GridCell gridCell) {
+    protected void paintGridCell(GridCell gridCell, Table table) {
         // get the tags
         Set<Binding> tagSet = new HashSet<>();
         Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toTable().rows().forEachRemaining(tagSet::add);
         int tagSetSize = tagSet.size();
 
-        Table table = gridComputationLoadTask.getMap().getIfPresent(gridCell.asNode());
+        // FIXME: Cell may have been unloaded when we come here!
+        // So we really need to fire (key, value) as an event!
+        if (table == null) {
+            table = gridComputationLoadTask.getMap().getIfPresent(gridCell.asNode());
+            if (table == null) {
+                logger.warn("null table for gridCell " + gridCell.asNode());
+                table = TableFactory.create();
+            }
+        }
+
+        Table finalTable = table;
+
         long match = 0;
-        for (Binding b : (Iterable<Binding>)() -> table.rows()) {
+        for (Binding b : (Iterable<Binding>)() -> finalTable.rows()) {
 //            Binding tag = BindingUtils.project(b, "co", "cop");
 //            if (tagSet.contains(tag)) {
 //                ++match;
@@ -804,7 +815,7 @@ public class ReachabilityView extends VerticalLayout
             FileCache fileCache = mobyDexApi.getProjectCache();
             Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
             Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
-            int nThreads = 1;
+            int nThreads = 20;
 
             Set<Binding> geomBindings = appState.selectedGeomBindings().getValue().orElse(null);
             List<GridCell> cells = new ArrayList<>(project.getCells());
@@ -832,11 +843,11 @@ public class ReachabilityView extends VerticalLayout
                 .buffer(1000, TimeUnit.MILLISECONDS, 50)
                 .filter(buffer -> !buffer.isEmpty())
                 .doFinally(() -> { ui.access(() -> cancelLoadBtn.setEnabled(false)); })
-                .forEach(gridCells -> {
-                    System.out.println(String.format("Received batch of %d cells", gridCells.size()));
+                .forEach(gridCellAndTableList -> {
+                    logger.info(String.format("Received batch of %d cells", gridCellAndTableList.size()));
                     ui.access(() -> {
-                        for (GridCell cell : gridCells) {
-                            paintGridCell(cell);
+                        for (Entry<GridCell, Table> e : gridCellAndTableList) {
+                            paintGridCell(e.getKey(), e.getValue());
                         }
                     }); //, null);
                 // logger.info("Loaded: " + gridCell.getURI());

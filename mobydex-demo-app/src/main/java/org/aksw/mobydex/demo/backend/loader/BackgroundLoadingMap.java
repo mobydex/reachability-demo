@@ -1,6 +1,8 @@
 package org.aksw.mobydex.demo.backend.loader;
 
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -54,10 +56,10 @@ public class BackgroundLoadingMap<K, V>
 
     private Thread loaderThread = null;
 
-    private final FlowableProcessor<K> updateProcessor = ReplayProcessor.<K>create().toSerialized();
+    private final FlowableProcessor<Entry<K, V>> updateProcessor = ReplayProcessor.<Entry<K, V>>create().toSerialized();
 
-    private final Flowable<K> updates;
-    private final Flowable<K> flowable;
+    private final Flowable<Entry<K, V>> updates;
+    private final Flowable<Entry<K, V>> flowable;
 
     public BackgroundLoadingMap(int nThreads, Set<K> keySet, Function<K, V> loader) {
         super();
@@ -67,7 +69,9 @@ public class BackgroundLoadingMap<K, V>
         this.priorityExecutor = new PriorityExecutor<>(nThreads);
         this.maxBackgroundTasks = nThreads * 2;
         this.backgroundSlots = new Semaphore(maxBackgroundTasks);
-        this.cache = Caffeine.newBuilder().executor(priorityExecutor.getExecutor()).buildAsync();
+        this.cache = Caffeine.newBuilder().executor(priorityExecutor.getExecutor())
+                .maximumSize(1000)
+                .buildAsync();
 
         this.updates = Flowable.defer(() -> {
             if (!addSubscriber()) {
@@ -109,7 +113,7 @@ public class BackgroundLoadingMap<K, V>
         CompletableFuture<V> future = cache.getIfPresent(key);
         V result;
         try {
-            result = future.isDone() ? future.get() : null;
+            result = future != null && future.isDone() ? future.get() : null;
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
@@ -202,7 +206,7 @@ public class BackgroundLoadingMap<K, V>
                         if (error != null) {
                             handleLoadFailure(key, error);
                         } else {
-                            updateProcessor.onNext(key);
+                            updateProcessor.onNext(Map.entry(key, value));
                         }
                     } finally {
                         backgroundSlots.release();
@@ -273,7 +277,7 @@ public class BackgroundLoadingMap<K, V>
         priorityExecutor.getExecutor().shutdownNow();
     }
 
-    public Flowable<K> flow() {
+    public Flowable<Entry<K, V>> flow() {
         return updates;
     }
 }

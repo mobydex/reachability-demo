@@ -111,6 +111,7 @@ public class MobyDexRdfApiRaw {
         return model;
     }
 
+    @Deprecated(forRemoval = true)
     public static Model loadProjectGridOld(long projectId) {
         String queryStr = """
             PREFIX geo: <http://www.opengis.net/ont/geosparql#>
@@ -349,7 +350,7 @@ public class MobyDexRdfApiRaw {
                 .construct();
         Model m = ModelFactory.createModelForGraph(g);
 
-        RDFDataMgr.write(System.out, m, RDFFormat.TURTLE_PRETTY);
+        // RDFDataMgr.write(System.out, m, RDFFormat.TURTLE_PRETTY);
         Resource result = m.getResource(id);
         // The model may be empty if the cell has no connections.
         // Add a type triple to ensure that the model is non-empty.
@@ -368,6 +369,7 @@ public class MobyDexRdfApiRaw {
      * @param originCellId
      * @return The resource that corresponds to the origin cell.
      */
+    @Deprecated(forRemoval = true)
     public static Resource loadComputationOld(long projectId, long computationId, long originCellId) {
         String queryStr = """
             PREFIX eg: <http://www.example.org/>

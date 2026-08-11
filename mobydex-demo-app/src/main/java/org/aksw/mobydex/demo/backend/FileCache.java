@@ -31,7 +31,7 @@ public class FileCache {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        this.cache = Caffeine.newBuilder().maximumSize(10000).build();
+        this.cache = Caffeine.newBuilder().maximumSize(100).build();
     }
 
     public Path getCacheBasePath() {

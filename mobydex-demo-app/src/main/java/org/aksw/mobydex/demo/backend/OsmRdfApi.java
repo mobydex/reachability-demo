@@ -106,8 +106,8 @@ public class OsmRdfApi {
 
         Query query = QueryTransformOps.transform(baseQuery,
             ElementTransformInjectNamedElement.of(Map.of("elt:tags", tagsElt)));
-        System.out.println(query);
-        FileUtils.write("/tmp/union.ttl", out -> RDFDataMgr.write(out, unionModel, RDFFormat.TURTLE_BLOCKS));
+        // System.out.println(query);
+        // FileUtils.write("/tmp/union.ttl", out -> RDFDataMgr.write(out, unionModel, RDFFormat.TURTLE_BLOCKS));
         return QueryExec.graph(unionModel.getGraph()).query(query).table();
         // QueryExecution.model(unionModel).query(query).
 

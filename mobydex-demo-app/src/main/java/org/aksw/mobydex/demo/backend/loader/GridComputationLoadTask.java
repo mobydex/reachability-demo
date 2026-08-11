@@ -2,6 +2,7 @@ package org.aksw.mobydex.demo.backend.loader;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import org.aksw.jenax.sparql.fragment.api.Fragment2;
@@ -121,8 +122,8 @@ public class GridComputationLoadTask
         return task;
     }
 
-    public Flowable<GridCell> flow() {
-        return map.flow().map(node -> cellNodeToRes.get(node));
+    public Flowable<Entry<GridCell, Table>> flow() {
+        return map.flow().map(e -> Map.entry(cellNodeToRes.get(e.getKey()), e.getValue()));
     }
 //
 //    public void run(Emitter<GridCell> emitter) {
