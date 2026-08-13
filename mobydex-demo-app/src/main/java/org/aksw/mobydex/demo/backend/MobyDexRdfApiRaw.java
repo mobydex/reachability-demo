@@ -16,11 +16,11 @@ import java.util.Objects;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.vaadin.frontendtools.internal.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 
 import org.aksw.commons.io.util.PathUtils;
 import org.aksw.commons.io.util.UriToPathUtils;
 import org.aksw.jena_sparql_api.sparql.ext.json.RDFDatatypeJson;
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.jena.atlas.io.IOX;

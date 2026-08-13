@@ -25,6 +25,7 @@ import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
@@ -45,10 +46,12 @@ import com.vaadin.flow.spring.annotation.RouteScope;
 import com.vaadin.flow.spring.annotation.RouteScopeOwner;
 
 import org.aksw.commons.index.StorageComposers;
+import org.aksw.jena_sparql_api.vaadin.util.ColumnFactorySparql;
 import org.aksw.jena_sparql_api.vaadin.util.GridLike;
 import org.aksw.jena_sparql_api.vaadin.util.GridWrapperBase;
 import org.aksw.jena_sparql_api.vaadin.util.VaadinSparqlUtils;
 import org.aksw.jenax.arq.util.binding.BindingUtils;
+import org.aksw.jenax.arq.util.node.NodeUtils;
 import org.aksw.jenax.arq.util.tuple.adapter.TupleBridgeBinding;
 import org.aksw.jenax.dataaccess.sparql.factory.execution.query.QueryExecutionFactoryQuery;
 import org.aksw.jenax.sparql.fragment.api.Fragment;
@@ -167,6 +170,13 @@ public class ReachabilityView extends VerticalLayout
     private Disposable computationDisposable = null;
     private Disposable poiSelectionDisposable = null;
 
+
+    private Scale<Float> colorScale = Scale.<Float>of(3)
+            .put(0.0f,  new double[] {1.0f, 0.0f, 0.0f})
+            .put(0.25f, new double[] {0.9f, 0.7f, 0.1f})
+            .put(0.75f, new double[] {0.0f, 0.5f, 0.0f})
+            .put(1.0f,  new double[] {0.0f, 1.0f, 0.0f});
+
 //    protected Timer gridUpdateTimer = new Timer();
 //    protected volatile TimerTask gridUpdateTask = null;
 //    protected BlockingQueue<GridCell> overviewGridQueue = new LinkedBlockingDeque<>();
@@ -237,7 +247,7 @@ public class ReachabilityView extends VerticalLayout
         LPath<?> cellPath = cellIdToLayer.get(cellId);
         System.out.println("Geom for " + cellId + " -> " + cellPath);
         LPolylineOptions style = new LPolylineOptions()
-                .withColor(colorStr).withOpacity(0.8).withFillColor(colorStr).withFillOpacity(0.8);
+                .withColor(colorStr).withOpacity(0.5).withFillColor(colorStr).withFillOpacity(0.5);
 
         // CellStyles.purple(style);
         cellPath.setStyle(style);
@@ -342,15 +352,29 @@ public class ReachabilityView extends VerticalLayout
         // setSizeFull();
 
         HorizontalLayout controlBar = new HorizontalLayout();
+        controlBar.setAlignItems(FlexComponent.Alignment.END);
 
-        Button loadGridBtn = new Button("LoadGrid");
-        add(loadGridBtn);
-        loadGridBtn.addClickListener(ev -> {
-            Long projectId = appState.selectedProject().getValue();
-            loadProjectGrid(projectId);
-            refreshStats();
+        if (false) {
+            Button loadGridBtn = new Button("LoadGrid");
+            add(loadGridBtn);
+            loadGridBtn.addClickListener(ev -> {
+                Long projectId = appState.selectedProject().getValue();
+                loadProjectGrid(projectId);
+                refreshStats();
+            });
+            controlBar.add(loadGridBtn);
+        }
+
+        Button overviewBtn = new Button("Overview");
+        add(overviewBtn);
+        overviewBtn.addClickListener(ev -> {
+            paintOverview();
+//            Long projectId = appState.selectedProject().getValue();
+//            loadProjectGrid(projectId);
+//            refreshStats();
         });
-        controlBar.add(loadGridBtn);
+        controlBar.add(overviewBtn);
+
 
         Select<Long> durationCapSelect = new Select<>();
         durationCapSelect.setLabel("Duration Cap");
@@ -384,7 +408,7 @@ public class ReachabilityView extends VerticalLayout
             cellSelectionMode = ev.getValue();
         });
         // radioGroup.setReadOnly(true);
-        add(radioGroup);
+        controlBar.add(radioGroup);
 
         SplitLayout mapAndChartSplit = new SplitLayout(Orientation.VERTICAL);
         add(mapAndChartSplit);
@@ -396,6 +420,8 @@ public class ReachabilityView extends VerticalLayout
 
         mapContainer = createLMap(mapReady);
         mapAndChartSplit.addToPrimary(mapContainer);
+
+
         converter = new JtsToLMapConverter(reg);
 
         markerLayerGroup = new LLayerGroup(reg);
@@ -421,7 +447,10 @@ public class ReachabilityView extends VerticalLayout
         cellDetailsTab = tabSheet.add("Cell Details", cellDetailsChart);
 
         // Assumes that this code is in some kind of Vaadin component or view
-        mapAndChartSplit.addToSecondary(tabSheet);
+        ColorScaleLegend legend = new ColorScaleLegend(colorScale);
+        // add(legend);
+
+        mapAndChartSplit.addToSecondary(legend, tabSheet);
 
         // chart.setWidth("400px");
         reachabilityChart.setWidthFull();
@@ -472,7 +501,35 @@ public class ReachabilityView extends VerticalLayout
         cancelLoadBtn.addClickListener(ev -> {
             Disposables.dispose(computationDisposable);
         });
-        add(cancelLoadBtn);
+        // add(cancelLoadBtn);
+    }
+
+
+    public void paintOverview() {
+
+        //        System.out.println("STARTING LOAD");
+        Disposables.dispose(computationDisposable);
+
+            computationDisposable = gridComputationLoadTask.flow()
+                .doOnSubscribe(ev -> ui.access(() -> cancelLoadBtn.setEnabled(true)))
+                .subscribeOn(Schedulers.io(), false)
+                .buffer(1000, TimeUnit.MILLISECONDS, 50)
+                .filter(buffer -> !buffer.isEmpty())
+                .doFinally(() -> { ui.access(() -> cancelLoadBtn.setEnabled(false)); })
+                .forEach(gridCellAndTableList -> {
+                    logger.info(String.format("Received batch of %d cells", gridCellAndTableList.size()));
+                    ui.access(() -> {
+                        for (Entry<GridCell, Table> e : gridCellAndTableList) {
+                            paintGridCell(e.getKey(), e.getValue());
+                        }
+                    }); //, null);
+                // logger.info("Loaded: " + gridCell.getURI());
+                //enqueGridCell(gridCell);
+                // gridComputationLoadTask.loadCell(computationId, null)
+                });
+//            System.out.println("DONE LOAD");
+
+        // gridComputationLoadTask.startBackgroundLoading();
     }
 
     /**
@@ -577,14 +634,14 @@ public class ReachabilityView extends VerticalLayout
         }
     }
 
-    private void colorizeReachableCells(Map<Node, List<Binding>> cellToBinding, String cellId) {
-        LPath<?> cellPath = cellIdToLayer.get(cellId);
+    private void colorizeReachableCells(Map<Node, List<Binding>> cellToBindings, String focusCellId) {
+        LPath<?> cellPath = cellIdToLayer.get(focusCellId);
 
         LPolylineOptions style = new LPolylineOptions();
         CellStyles.grey(style); // default color
 
-        Node cellNode = NodeFactory.createURI(cellId);
-        List<Binding> bindings = cellToBinding.getOrDefault(cellNode, List.of());
+        Node cellNode = NodeFactory.createURI(focusCellId);
+        List<Binding> bindings = cellToBindings.getOrDefault(cellNode, List.of());
         Long poiDuration = null;
         for (Binding b : bindings) {
             Long duration = BindingUtils.tryGetNumber(b, "duration").map(Number::longValue).orElse(null);
@@ -603,7 +660,7 @@ public class ReachabilityView extends VerticalLayout
             cellPath.bindPopup(popupStr);
         }
 
-        if (Objects.equals(cellId, focusCell)) {
+        if (Objects.equals(focusCellId, focusCell)) {
             CellStyles.purple(style);
             // CellStyles.selected(style);
         }
@@ -663,7 +720,23 @@ public class ReachabilityView extends VerticalLayout
         QueryExecutionFactoryQuery qef = q -> QueryExecution.dataset(DatasetFactory.empty()).query(q).build();
 
         GridLike<Binding> wrappedGrid = GridWrapperBase.wrap(poiReachabilityGrid);
-        VaadinSparqlUtils.setQueryForGridBinding(wrappedGrid, poiReachabilityGrid.getHeaderRow(), qef, query);
+
+        ColumnFactorySparql colFactory = new ColumnFactorySparql() {
+            @Override
+            protected Node transform(Var var, Node node) {
+                if ("duration".endsWith(var.getName())) {
+                    Number number = NodeUtils.getNumberNullable(node);
+                    if (number != null) {
+                        return NodeFactory.createLiteralString("" + fmtDurationS2M(number.longValue()));
+                    }
+                }
+                return super.transform(var, node);
+            };
+        };
+        VaadinSparqlUtils.setQueryForGridBinding(wrappedGrid, poiReachabilityGrid.getHeaderRow(), qef, query, query.getProjectVars(), colFactory);
+
+
+
         VaadinSparqlUtils.configureGridFilter(wrappedGrid, poiReachabilityGrid.getFilterRow(), query.getProjectVars(),
                 var -> str -> VaadinSparqlUtils.createFilterExpr(var, str).orElse(null));
 
@@ -801,12 +874,18 @@ public class ReachabilityView extends VerticalLayout
                 }
             """).table();
 
+        LPolylineOptions style = new LPolylineOptions();
+        CellStyles.grey(style); // default color
+
         Set<Geometry> detectedGeometries = ResultSetMapRendererL.addBindingsToLayer(converter, gridLayerGroup,
                 bindings.rows(), (layer, b, v) -> {
                     Node s = b.get("s");
                     String str = s.toString();
-                    cellIdToLayer.put(str, (LPath<?>) layer);
-                    layer.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked('" + str + "')");
+                    LPath<?> lpath = (LPath<?>)layer;
+                    cellIdToLayer.put(str, lpath);
+                    lpath.setStyle(style);
+                    lpath.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked('" + str + "')");
+
 //                    layer.on("click", "e => document.getElementById('" + ID + "').$server.mapClicked(e.target.options)");
                 });
         if (!detectedGeometries.isEmpty()) {
@@ -826,7 +905,7 @@ public class ReachabilityView extends VerticalLayout
             FileCache fileCache = mobyDexApi.getProjectCache();
             Fragment2 tagsFragment = Fragment.of(OsmRdfApi.getPoiCategories()).project(0, 1).toFragment2();
             Model poiTypeHistogramModel = mobyDexApi.loadAndCachePoiHistogramModel(project, tagsFragment);
-            int nThreads = 20;
+            int nThreads = 1;
 
             Set<Binding> geomBindings = appState.selectedGeomBindings().getValue().orElse(null);
             List<GridCell> cells = new ArrayList<>(project.getCells());
@@ -843,31 +922,6 @@ public class ReachabilityView extends VerticalLayout
             }
 
             gridComputationLoadTask = new GridComputationLoadTask(fileCache, nThreads, project, cells, computationId, mobyDexApi, poiTypeHistogramModel, tagsFragment);
-
-    //        System.out.println("STARTING LOAD");
-
-            Disposables.dispose(computationDisposable);
-
-            computationDisposable = gridComputationLoadTask.flow()
-                .doOnSubscribe(ev -> ui.access(() -> cancelLoadBtn.setEnabled(true)))
-                .subscribeOn(Schedulers.io(), false)
-                .buffer(1000, TimeUnit.MILLISECONDS, 50)
-                .filter(buffer -> !buffer.isEmpty())
-                .doFinally(() -> { ui.access(() -> cancelLoadBtn.setEnabled(false)); })
-                .forEach(gridCellAndTableList -> {
-                    logger.info(String.format("Received batch of %d cells", gridCellAndTableList.size()));
-                    ui.access(() -> {
-                        for (Entry<GridCell, Table> e : gridCellAndTableList) {
-                            paintGridCell(e.getKey(), e.getValue());
-                        }
-                    }); //, null);
-                // logger.info("Loaded: " + gridCell.getURI());
-                //enqueGridCell(gridCell);
-                // gridComputationLoadTask.loadCell(computationId, null)
-                });
-//        System.out.println("DONE LOAD");
-
-        // gridComputationLoadTask.startBackgroundLoading();
     }
 
     public static Stream<Entry<Var, Geometry>> mapToGeometries(Binding b) {
@@ -897,14 +951,14 @@ public class ReachabilityView extends VerticalLayout
         mapContainer.getlMap().fixInvalidSizeAfterCreation(ID);
         add(mapContainer);
 
-        Scale<Float> scale = Scale.<Float>of(3)
-                .put(0.0f, new double[] {1.0f, 0.0f, 0.0f})
-                .put(0.4f, new double[] {0.9f, 0.7f, 0.1f})
-                .put(0.6f, new double[] {0.0f, 0.5f, 0.0f})
-                .put(0.8f, new double[] {0.0f, 1.0f, 0.0f});
-
-        ColorScaleLegend legend = new ColorScaleLegend(scale);
-        add(legend);
+//        Scale<Float> scale = Scale.<Float>of(3)
+//                .put(0.0f, new double[] {1.0f, 0.0f, 0.0f})
+//                .put(0.4f, new double[] {0.9f, 0.7f, 0.1f})
+//                .put(0.6f, new double[] {0.0f, 0.5f, 0.0f})
+//                .put(0.8f, new double[] {0.0f, 1.0f, 0.0f});
+//
+//        ColorScaleLegend legend = new ColorScaleLegend(scale);
+//        add(legend);
 
         LMap map = mapContainer.getlMap();
 
@@ -1021,6 +1075,7 @@ public class ReachabilityView extends VerticalLayout
 
     @Override
     public void afterNavigation(AfterNavigationEvent event) {
+        // paintOverview();
     }
 }
 

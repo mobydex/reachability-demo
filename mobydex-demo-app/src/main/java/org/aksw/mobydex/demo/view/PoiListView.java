@@ -10,6 +10,8 @@ import com.vaadin.flow.component.grid.Grid.SelectionMode;
 import com.vaadin.flow.component.grid.GridMultiSelectionModel;
 import com.vaadin.flow.component.grid.GridMultiSelectionModel.SelectAllCheckboxVisibility;
 import com.vaadin.flow.component.grid.HeaderRow;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
@@ -61,6 +63,9 @@ public class PoiListView
 //        ExecutorService executorService = Executors.newCachedThreadPool();
 //        executor = executorService;
 
+        HorizontalLayout controlBar = new HorizontalLayout();
+        controlBar.setAlignItems(FlexComponent.Alignment.END);
+
         applySelectionBtn = new Button("Apply Selection");
         applySelectionBtn.addClickListener(ev -> {
             Set<Binding> selectionSet = resultSetGrid.getSelectedItems();
@@ -75,7 +80,9 @@ public class PoiListView
 //            	.toList();
         });
 
-        add(applySelectionBtn);
+        controlBar.add(applySelectionBtn);
+
+        add(controlBar);
 
         QueryExecutionFactoryQuery qef = q -> QueryExecution.create().dataset(DatasetFactory.empty()).query(q).build();
 

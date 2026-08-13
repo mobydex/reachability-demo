@@ -9,6 +9,8 @@ import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
@@ -84,7 +86,7 @@ public class GeoSparqlView
         r0.addLiteral(queryString, "");
 
         Resource r1 = ModelFactory.createDefaultModel().createResource();
-        r1.addLiteral(RDFS.label, "RegioStaR");
+        r1.addLiteral(RDFS.label, "RegioStaR - All");
         r1.addLiteral(queryString, """
             PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
             PREFIX geo: <http://www.opengis.net/ont/geosparql#>
@@ -104,8 +106,29 @@ public class GeoSparqlView
             """);
 
         Resource r2 = ModelFactory.createDefaultModel().createResource();
-        r2.addLiteral(RDFS.label, "Zensus");
+        r2.addLiteral(RDFS.label, "RegioStaR - Metropolitane Stadregion - Metropole RS17/111");
         r2.addLiteral(queryString, """
+            PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
+            PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+            PREFIX spatial: <http://jena.apache.org/spatial#>
+            PREFIX rro: <https://schema.aksw.org/regiostar/>
+
+            SELECT *
+            {
+              GRAPH <https://mobydex.org/resource/regiostar/> {
+                ?s spatial:intersectBoxGeom(?GRID_WKT) .
+                ?s geo:hasGeometry ?g .
+                ?g geo:asWKT ?wkt .
+                FILTER(geof:sfIntersects(?wkt, ?GRID_WKT))
+                ?s <https://mobydex.org/resource/regiostar/RS17> 111
+                #?s rro:type ?regioStaRType .
+              }
+            }
+            """);
+
+        Resource r3 = ModelFactory.createDefaultModel().createResource();
+        r3.addLiteral(RDFS.label, "Zensus");
+        r3.addLiteral(queryString, """
             PREFIX eg: <http://www.example.org/>
             PREFIX qb: <http://purl.org/linked-data/cube#>
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -127,27 +150,30 @@ public class GeoSparqlView
                 # ?obs ?p ?o
               }
               FILTER(geof:sfIntersects(?cellWkt, ?GRID_WKT))
-              FILTER (?inhabitants > 200 && ?inhabitants < 10000)
+              FILTER (?inhabitants > 200)
               #FILTER(?avgAge > 30 && ?avgAge < 50)
             }
             #LIMIT 10
             """);
 
+        HorizontalLayout controlBar = new HorizontalLayout();
+        controlBar.setAlignItems(FlexComponent.Alignment.END);
+
         ComboBox<Resource> comboBox = new ComboBox<>();
         comboBox.setLabel("Examples");
-        comboBox.setItems(List.of(r0, r1, r2));
+        comboBox.setItems(List.of(r0, r1, r2, r3));
         comboBox.setItemLabelGenerator(r -> r.getProperty(RDFS.label).getString());
         comboBox.addValueChangeListener(ev -> {
             browser.getYasqe().setValue(ev.getValue().getProperty(queryString).getString());
         });
-        add(comboBox);
+        controlBar.add(comboBox);
 
 
-        Button recenterMap = new Button("Recenter Map");
-        recenterMap.addClickListener(ev -> {
+        Button recenterMapBtn = new Button("Recenter Map");
+        recenterMapBtn.addClickListener(ev -> {
             recenterMap();
         });
-        add(recenterMap);
+        controlBar.add(recenterMapBtn);
 
         applySelectionBtn = new Button("Apply Selection");
         applySelectionBtn.addClickListener(ev -> {
@@ -156,13 +182,18 @@ public class GeoSparqlView
             appState.setSelectedGeomBindings(Optional.of(geomBindings));
             ui.navigate(ReachabilityView.class);
         });
-        add(applySelectionBtn);
+        controlBar.add(applySelectionBtn);
+
 
         clearSelectionBtn = new Button("Clear Selection");
         clearSelectionBtn.addClickListener(ev -> {
             appState.setSelectedGeomBindings(Optional.empty());
             ui.navigate(ReachabilityView.class);
         });
+
+
+        //controlBar.add(clearSelectionBtn);
+        add(controlBar);
 
 
         // comboBox.setRenderer(r);

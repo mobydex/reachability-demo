@@ -3,6 +3,9 @@ package org.aksw.mobydex.demo;
 import software.xdev.vaadin.maps.leaflet.layer.vector.LPolylineOptions;
 
 public class CellStyles {
+
+    public static double DFT_OPACITY = 0.3;
+
         public static LPolylineOptions grey() {
             return grey(new LPolylineOptions());
         }
@@ -20,19 +23,19 @@ public class CellStyles {
         }
 
         public static LPolylineOptions grey(LPolylineOptions options) {
-            return options.withColor("grey").withFillColor("lightgrey").withFillOpacity(0.5);
+            return options.withColor("grey").withFillColor("lightgrey").withFillOpacity(DFT_OPACITY);
         }
 
         public static LPolylineOptions blue(LPolylineOptions options) {
-            return options.withColor("blue").withFillColor("lightblue").withFillOpacity(0.5);
+            return options.withColor("blue").withFillColor("lightblue").withFillOpacity(DFT_OPACITY);
         }
 
         public static LPolylineOptions green(LPolylineOptions options) {
-            return options.withColor("green").withFillColor("lightgreen").withFillOpacity(0.5);
+            return options.withColor("green").withFillColor("lightgreen").withFillOpacity(DFT_OPACITY);
         }
 
         public static LPolylineOptions red(LPolylineOptions options) {
-            return options.withColor("red").withFillColor("orange").withFillOpacity(0.5);
+            return options.withColor("red").withFillColor("orange").withFillOpacity(DFT_OPACITY);
         }
 
         public static LPolylineOptions purple(LPolylineOptions options) {
@@ -40,6 +43,6 @@ public class CellStyles {
         }
 
 //        public static LPolylineOptions selected(LPolylineOptions options) {
-//            return options.withStroke(true).withColor("orange").withOpacity(0.5);
+//            return options.withStroke(true).withColor("orange").withOpacity(DFT_OPACITY);
 //        }
     }

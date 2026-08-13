@@ -59,7 +59,7 @@ public class MainLayout
 
     public MainLayout () {
         drawerToggle = new DrawerToggle();
-        H1 title = new H1("MobyDex Reachability Demo");
+        H1 title = new H1("MobyDex X-Minutes City Demonstrator");
 
         // Global level
 //        SideNavItem allProjects = new SideNavItem("All Projects", ReachabilityView.class);
@@ -68,24 +68,28 @@ public class MainLayout
         HorizontalLayout navbarLayout = new HorizontalLayout();
         menuBar = new MenuBar();
 
-        TaskManager.setupActionGrid(menuBar, taskControlRegistry);
+        if (false) {
+            TaskManager.setupActionGrid(menuBar, taskControlRegistry);
+        }
 
 
         navbarLayout.setWidthFull();
         navbarLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.END);
 
-        Button appSettingsBtn = new Button(new Icon(VaadinIcon.COG));
-        navbarLayout.add(appSettingsBtn);
+        if (false) {
+            Button appSettingsBtn = new Button(new Icon(VaadinIcon.COG));
+            navbarLayout.add(appSettingsBtn);
 
-        Button colorSchemeToggleButton = new Button(new Icon(VaadinIcon.LIGHTBULB), click -> {
-            Page page = UI.getCurrent().getPage();
-            Value currentColorScheme = page.getColorScheme();
-            Value nextColorScheme = ColorScheme.Value.DARK.equals(currentColorScheme)
-                ? ColorScheme.Value.LIGHT
-                : ColorScheme.Value.DARK;
-            page.setColorScheme(nextColorScheme);
-        });
-        navbarLayout.add(colorSchemeToggleButton);
+            Button colorSchemeToggleButton = new Button(new Icon(VaadinIcon.LIGHTBULB), click -> {
+                Page page = UI.getCurrent().getPage();
+                Value currentColorScheme = page.getColorScheme();
+                Value nextColorScheme = ColorScheme.Value.DARK.equals(currentColorScheme)
+                    ? ColorScheme.Value.LIGHT
+                    : ColorScheme.Value.DARK;
+                page.setColorScheme(nextColorScheme);
+            });
+            navbarLayout.add(colorSchemeToggleButton);
+        }
 
         navbarLayout.add(title);
         // refreshMenuBar();
